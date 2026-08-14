@@ -863,67 +863,72 @@ EncodableValue PigeonInternalCodecSerializer::ReadValueOfType(
     case 132: {
         const auto& encodable_enum_arg = ReadValue(stream);
         const int64_t enum_arg_value = encodable_enum_arg.IsNull() ? 0 : encodable_enum_arg.LongValue();
-        return encodable_enum_arg.IsNull() ? EncodableValue() : CustomEncodableValue(static_cast<GATTCharacteristicPropertyArgs>(enum_arg_value));
+        return encodable_enum_arg.IsNull() ? EncodableValue() : CustomEncodableValue(static_cast<DevicePairingResultStatusArgs>(enum_arg_value));
       }
     case 133: {
         const auto& encodable_enum_arg = ReadValue(stream);
         const int64_t enum_arg_value = encodable_enum_arg.IsNull() ? 0 : encodable_enum_arg.LongValue();
-        return encodable_enum_arg.IsNull() ? EncodableValue() : CustomEncodableValue(static_cast<GATTCharacteristicWriteTypeArgs>(enum_arg_value));
+        return encodable_enum_arg.IsNull() ? EncodableValue() : CustomEncodableValue(static_cast<GATTCharacteristicPropertyArgs>(enum_arg_value));
       }
     case 134: {
         const auto& encodable_enum_arg = ReadValue(stream);
         const int64_t enum_arg_value = encodable_enum_arg.IsNull() ? 0 : encodable_enum_arg.LongValue();
-        return encodable_enum_arg.IsNull() ? EncodableValue() : CustomEncodableValue(static_cast<GATTCharacteristicNotifyStateArgs>(enum_arg_value));
+        return encodable_enum_arg.IsNull() ? EncodableValue() : CustomEncodableValue(static_cast<GATTCharacteristicWriteTypeArgs>(enum_arg_value));
       }
     case 135: {
         const auto& encodable_enum_arg = ReadValue(stream);
         const int64_t enum_arg_value = encodable_enum_arg.IsNull() ? 0 : encodable_enum_arg.LongValue();
-        return encodable_enum_arg.IsNull() ? EncodableValue() : CustomEncodableValue(static_cast<GATTProtectionLevelArgs>(enum_arg_value));
+        return encodable_enum_arg.IsNull() ? EncodableValue() : CustomEncodableValue(static_cast<GATTCharacteristicNotifyStateArgs>(enum_arg_value));
       }
     case 136: {
         const auto& encodable_enum_arg = ReadValue(stream);
         const int64_t enum_arg_value = encodable_enum_arg.IsNull() ? 0 : encodable_enum_arg.LongValue();
-        return encodable_enum_arg.IsNull() ? EncodableValue() : CustomEncodableValue(static_cast<GATTProtocolErrorArgs>(enum_arg_value));
+        return encodable_enum_arg.IsNull() ? EncodableValue() : CustomEncodableValue(static_cast<GATTProtectionLevelArgs>(enum_arg_value));
       }
     case 137: {
         const auto& encodable_enum_arg = ReadValue(stream);
         const int64_t enum_arg_value = encodable_enum_arg.IsNull() ? 0 : encodable_enum_arg.LongValue();
-        return encodable_enum_arg.IsNull() ? EncodableValue() : CustomEncodableValue(static_cast<CacheModeArgs>(enum_arg_value));
+        return encodable_enum_arg.IsNull() ? EncodableValue() : CustomEncodableValue(static_cast<GATTProtocolErrorArgs>(enum_arg_value));
       }
     case 138: {
-        return CustomEncodableValue(ManufacturerSpecificDataArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
+        const auto& encodable_enum_arg = ReadValue(stream);
+        const int64_t enum_arg_value = encodable_enum_arg.IsNull() ? 0 : encodable_enum_arg.LongValue();
+        return encodable_enum_arg.IsNull() ? EncodableValue() : CustomEncodableValue(static_cast<CacheModeArgs>(enum_arg_value));
       }
     case 139: {
-        return CustomEncodableValue(AdvertisementArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
+        return CustomEncodableValue(ManufacturerSpecificDataArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
       }
     case 140: {
-        return CustomEncodableValue(CentralArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
+        return CustomEncodableValue(AdvertisementArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
       }
     case 141: {
-        return CustomEncodableValue(PeripheralArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
+        return CustomEncodableValue(CentralArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
       }
     case 142: {
-        return CustomEncodableValue(GATTDescriptorArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
+        return CustomEncodableValue(PeripheralArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
       }
     case 143: {
-        return CustomEncodableValue(GATTCharacteristicArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
+        return CustomEncodableValue(GATTDescriptorArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
       }
     case 144: {
-        return CustomEncodableValue(GATTServiceArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
+        return CustomEncodableValue(GATTCharacteristicArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
       }
     case 145: {
-        return CustomEncodableValue(MutableGATTDescriptorArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
+        return CustomEncodableValue(GATTServiceArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
       }
     case 146: {
-        return CustomEncodableValue(MutableGATTCharacteristicArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
+        return CustomEncodableValue(MutableGATTDescriptorArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
       }
     case 147: {
-        return CustomEncodableValue(MutableGATTServiceArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
+        return CustomEncodableValue(MutableGATTCharacteristicArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
       }
     case 148: {
-        return CustomEncodableValue(GATTReadRequestArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
+        return CustomEncodableValue(MutableGATTServiceArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
       }
     case 149: {
+        return CustomEncodableValue(GATTReadRequestArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
+      }
+    case 150: {
         return CustomEncodableValue(GATTWriteRequestArgs::FromEncodableList(std::get<EncodableList>(ReadValue(stream))));
       }
     default:
@@ -950,93 +955,98 @@ void PigeonInternalCodecSerializer::WriteValue(
       WriteValue(EncodableValue(static_cast<int>(std::any_cast<ConnectionStateArgs>(*custom_value))), stream);
       return;
     }
-    if (custom_value->type() == typeid(GATTCharacteristicPropertyArgs)) {
+    if (custom_value->type() == typeid(DevicePairingResultStatusArgs)) {
       stream->WriteByte(132);
+      WriteValue(EncodableValue(static_cast<int>(std::any_cast<DevicePairingResultStatusArgs>(*custom_value))), stream);
+      return;
+    }
+    if (custom_value->type() == typeid(GATTCharacteristicPropertyArgs)) {
+      stream->WriteByte(133);
       WriteValue(EncodableValue(static_cast<int>(std::any_cast<GATTCharacteristicPropertyArgs>(*custom_value))), stream);
       return;
     }
     if (custom_value->type() == typeid(GATTCharacteristicWriteTypeArgs)) {
-      stream->WriteByte(133);
+      stream->WriteByte(134);
       WriteValue(EncodableValue(static_cast<int>(std::any_cast<GATTCharacteristicWriteTypeArgs>(*custom_value))), stream);
       return;
     }
     if (custom_value->type() == typeid(GATTCharacteristicNotifyStateArgs)) {
-      stream->WriteByte(134);
+      stream->WriteByte(135);
       WriteValue(EncodableValue(static_cast<int>(std::any_cast<GATTCharacteristicNotifyStateArgs>(*custom_value))), stream);
       return;
     }
     if (custom_value->type() == typeid(GATTProtectionLevelArgs)) {
-      stream->WriteByte(135);
+      stream->WriteByte(136);
       WriteValue(EncodableValue(static_cast<int>(std::any_cast<GATTProtectionLevelArgs>(*custom_value))), stream);
       return;
     }
     if (custom_value->type() == typeid(GATTProtocolErrorArgs)) {
-      stream->WriteByte(136);
+      stream->WriteByte(137);
       WriteValue(EncodableValue(static_cast<int>(std::any_cast<GATTProtocolErrorArgs>(*custom_value))), stream);
       return;
     }
     if (custom_value->type() == typeid(CacheModeArgs)) {
-      stream->WriteByte(137);
+      stream->WriteByte(138);
       WriteValue(EncodableValue(static_cast<int>(std::any_cast<CacheModeArgs>(*custom_value))), stream);
       return;
     }
     if (custom_value->type() == typeid(ManufacturerSpecificDataArgs)) {
-      stream->WriteByte(138);
+      stream->WriteByte(139);
       WriteValue(EncodableValue(std::any_cast<ManufacturerSpecificDataArgs>(*custom_value).ToEncodableList()), stream);
       return;
     }
     if (custom_value->type() == typeid(AdvertisementArgs)) {
-      stream->WriteByte(139);
+      stream->WriteByte(140);
       WriteValue(EncodableValue(std::any_cast<AdvertisementArgs>(*custom_value).ToEncodableList()), stream);
       return;
     }
     if (custom_value->type() == typeid(CentralArgs)) {
-      stream->WriteByte(140);
+      stream->WriteByte(141);
       WriteValue(EncodableValue(std::any_cast<CentralArgs>(*custom_value).ToEncodableList()), stream);
       return;
     }
     if (custom_value->type() == typeid(PeripheralArgs)) {
-      stream->WriteByte(141);
+      stream->WriteByte(142);
       WriteValue(EncodableValue(std::any_cast<PeripheralArgs>(*custom_value).ToEncodableList()), stream);
       return;
     }
     if (custom_value->type() == typeid(GATTDescriptorArgs)) {
-      stream->WriteByte(142);
+      stream->WriteByte(143);
       WriteValue(EncodableValue(std::any_cast<GATTDescriptorArgs>(*custom_value).ToEncodableList()), stream);
       return;
     }
     if (custom_value->type() == typeid(GATTCharacteristicArgs)) {
-      stream->WriteByte(143);
+      stream->WriteByte(144);
       WriteValue(EncodableValue(std::any_cast<GATTCharacteristicArgs>(*custom_value).ToEncodableList()), stream);
       return;
     }
     if (custom_value->type() == typeid(GATTServiceArgs)) {
-      stream->WriteByte(144);
+      stream->WriteByte(145);
       WriteValue(EncodableValue(std::any_cast<GATTServiceArgs>(*custom_value).ToEncodableList()), stream);
       return;
     }
     if (custom_value->type() == typeid(MutableGATTDescriptorArgs)) {
-      stream->WriteByte(145);
+      stream->WriteByte(146);
       WriteValue(EncodableValue(std::any_cast<MutableGATTDescriptorArgs>(*custom_value).ToEncodableList()), stream);
       return;
     }
     if (custom_value->type() == typeid(MutableGATTCharacteristicArgs)) {
-      stream->WriteByte(146);
+      stream->WriteByte(147);
       WriteValue(EncodableValue(std::any_cast<MutableGATTCharacteristicArgs>(*custom_value).ToEncodableList()), stream);
       return;
     }
     if (custom_value->type() == typeid(MutableGATTServiceArgs)) {
-      stream->WriteByte(147);
+      stream->WriteByte(148);
       WriteValue(EncodableValue(std::any_cast<MutableGATTServiceArgs>(*custom_value).ToEncodableList()), stream);
       return;
     }
     if (custom_value->type() == typeid(GATTReadRequestArgs)) {
-      stream->WriteByte(148);
+      stream->WriteByte(149);
       WriteValue(EncodableValue(std::any_cast<GATTReadRequestArgs>(*custom_value).ToEncodableList()), stream);
       return;
     }
     if (custom_value->type() == typeid(GATTWriteRequestArgs)) {
-      stream->WriteByte(149);
+      stream->WriteByte(150);
       WriteValue(EncodableValue(std::any_cast<GATTWriteRequestArgs>(*custom_value).ToEncodableList()), stream);
       return;
     }
@@ -1599,6 +1609,98 @@ void CentralManagerHostApi::SetUp(
             wrapped.push_back(EncodableValue());
             reply(EncodableValue(std::move(wrapped)));
           });
+        } catch (const std::exception& exception) {
+          reply(WrapError(exception.what()));
+        }
+      });
+    } else {
+      channel.SetMessageHandler(nullptr);
+    }
+  }
+  {
+    BasicMessageChannel<> channel(binary_messenger, "dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.pair" + prepended_suffix, &GetCodec());
+    if (api != nullptr) {
+      channel.SetMessageHandler([api](const EncodableValue& message, const flutter::MessageReply<EncodableValue>& reply) {
+        try {
+          const auto& args = std::get<EncodableList>(message);
+          const auto& encodable_address_args_arg = args.at(0);
+          if (encodable_address_args_arg.IsNull()) {
+            reply(WrapError("address_args_arg unexpectedly null."));
+            return;
+          }
+          const int64_t address_args_arg = encodable_address_args_arg.LongValue();
+          const auto& encodable_auto_accept_args_arg = args.at(1);
+          if (encodable_auto_accept_args_arg.IsNull()) {
+            reply(WrapError("auto_accept_args_arg unexpectedly null."));
+            return;
+          }
+          const auto& auto_accept_args_arg = std::get<bool>(encodable_auto_accept_args_arg);
+          api->Pair(address_args_arg, auto_accept_args_arg, [reply](ErrorOr<DevicePairingResultStatusArgs>&& output) {
+            if (output.has_error()) {
+              reply(WrapError(output.error()));
+              return;
+            }
+            EncodableList wrapped;
+            wrapped.push_back(CustomEncodableValue(std::move(output).TakeValue()));
+            reply(EncodableValue(std::move(wrapped)));
+          });
+        } catch (const std::exception& exception) {
+          reply(WrapError(exception.what()));
+        }
+      });
+    } else {
+      channel.SetMessageHandler(nullptr);
+    }
+  }
+  {
+    BasicMessageChannel<> channel(binary_messenger, "dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.unpair" + prepended_suffix, &GetCodec());
+    if (api != nullptr) {
+      channel.SetMessageHandler([api](const EncodableValue& message, const flutter::MessageReply<EncodableValue>& reply) {
+        try {
+          const auto& args = std::get<EncodableList>(message);
+          const auto& encodable_address_args_arg = args.at(0);
+          if (encodable_address_args_arg.IsNull()) {
+            reply(WrapError("address_args_arg unexpectedly null."));
+            return;
+          }
+          const int64_t address_args_arg = encodable_address_args_arg.LongValue();
+          api->Unpair(address_args_arg, [reply](std::optional<FlutterError>&& output) {
+            if (output.has_value()) {
+              reply(WrapError(output.value()));
+              return;
+            }
+            EncodableList wrapped;
+            wrapped.push_back(EncodableValue());
+            reply(EncodableValue(std::move(wrapped)));
+          });
+        } catch (const std::exception& exception) {
+          reply(WrapError(exception.what()));
+        }
+      });
+    } else {
+      channel.SetMessageHandler(nullptr);
+    }
+  }
+  {
+    BasicMessageChannel<> channel(binary_messenger, "dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.isPaired" + prepended_suffix, &GetCodec());
+    if (api != nullptr) {
+      channel.SetMessageHandler([api](const EncodableValue& message, const flutter::MessageReply<EncodableValue>& reply) {
+        try {
+          const auto& args = std::get<EncodableList>(message);
+          const auto& encodable_address_args_arg = args.at(0);
+          if (encodable_address_args_arg.IsNull()) {
+            reply(WrapError("address_args_arg unexpectedly null."));
+            return;
+          }
+          const int64_t address_args_arg = encodable_address_args_arg.LongValue();
+          ErrorOr<bool> output = api->IsPaired(address_args_arg);
+          if (output.has_error()) {
+            reply(WrapError(output.error()));
+            return;
+          }
+          EncodableList wrapped;
+          wrapped.push_back(EncodableValue(std::move(output).TakeValue()));
+          reply(EncodableValue(std::move(wrapped)));
         } catch (const std::exception& exception) {
           reply(WrapError(exception.what()));
         }

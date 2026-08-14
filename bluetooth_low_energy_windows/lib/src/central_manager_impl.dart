@@ -5,6 +5,7 @@ import 'package:bluetooth_low_energy_platform_interface/bluetooth_low_energy_pla
 import 'package:logging/logging.dart';
 
 import 'api.dart';
+import 'pairing.dart';
 import 'api.g.dart';
 import 'gatt_impl.dart';
 import 'peripheral_impl.dart';
@@ -269,6 +270,54 @@ final class CentralManagerImpl
     final valueArgs = value;
     _logger.info('writeDescriptor: $addressArgs.$handleArgs - $valueArgs');
     await _api.writeDescriptor(addressArgs, handleArgs, valueArgs);
+  }
+
+  /// ペアリング(暗号化リンクの確立)を開始し、結果が出るまで待つ。
+  ///
+  /// 保護された属性は、リンクが暗号化されていないと読み書きできない。
+  /// ボンディングしない装置では鍵が保存されないため、**接続ごとに**
+  /// これを済ませてから初期読み出しへ進む必要がある。
+  ///
+  /// [autoAccept] が true のとき `ConfirmOnly` の同意要求を自動承認する
+  /// (Windows の同意ダイアログは出ない)。装置が Just Works の場合、
+  /// 利用者が押すのと承認内容は変わらない。ボンディングあり運用へ切り替える
+  /// 可能性があるため、選べる形にしてある。
+  ///
+  /// 失敗は例外にせず [DevicePairingResultStatus] として返す。呼び出し側は
+  /// キャンセル・タイムアウト・拒否を区別できる。
+  Future<DevicePairingResultStatus> pair(
+    Peripheral peripheral, {
+    bool autoAccept = true,
+  }) async {
+    if (peripheral is! PeripheralImpl) {
+      throw TypeError();
+    }
+    final addressArgs = peripheral.address;
+    _logger.info('pair: $addressArgs - autoAccept: $autoAccept');
+    final statusArgs = await _api.pair(addressArgs, autoAccept);
+    _logger.info('pair: $addressArgs -> $statusArgs');
+    return statusArgs.toStatus();
+  }
+
+  /// OS が保持しているペアリング(関連付け)を解除する。接続は不要。
+  Future<void> unpair(Peripheral peripheral) async {
+    if (peripheral is! PeripheralImpl) {
+      throw TypeError();
+    }
+    final addressArgs = peripheral.address;
+    _logger.info('unpair: $addressArgs');
+    await _api.unpair(addressArgs);
+  }
+
+  /// OS がこの装置をペアリング済みとみなしているか。接続は不要。
+  Future<bool> isPaired(Peripheral peripheral) async {
+    if (peripheral is! PeripheralImpl) {
+      throw TypeError();
+    }
+    final addressArgs = peripheral.address;
+    final paired = await _api.isPaired(addressArgs);
+    _logger.info('isPaired: $addressArgs -> $paired');
+    return paired;
   }
 
   @override

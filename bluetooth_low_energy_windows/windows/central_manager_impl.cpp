@@ -287,9 +287,8 @@ namespace bluetooth_low_energy_windows
 			const auto status = r.Status();
 			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
 			{
-				const auto status_code = static_cast<int>(status);
-				const auto message = "Connect failed with status: " + std::to_string(status_code);
-				throw BluetoothLowEnergyException(message);
+				result(GattError("Connect", status, r.ProtocolError()));
+				co_return;
 			}
 			auto &api = m_api.value();
 			const auto peripheral_args = PeripheralArgs(address_args);
@@ -354,9 +353,8 @@ namespace bluetooth_low_energy_windows
 			const auto status = r.Status();
 			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
 			{
-				const auto status_code = static_cast<int>(status);
-				const auto message = "Get services failed with status: " + std::to_string(status_code);
-				throw BluetoothLowEnergyException(message);
+				result(GattError("Get services", status, r.ProtocolError()));
+				co_return;
 			}
 			const auto services = r.Services();
 			auto services_args = flutter::EncodableList();
@@ -397,9 +395,8 @@ namespace bluetooth_low_energy_windows
 			const auto status = r.Status();
 			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
 			{
-				const auto status_code = static_cast<int>(status);
-				const auto message = "Get included services failed with status: " + std::to_string(status_code);
-				throw BluetoothLowEnergyException(message);
+				result(GattError("Get included services", status, r.ProtocolError()));
+				co_return;
 			}
 			const auto included_services = r.Services();
 			auto included_services_args = flutter::EncodableList();
@@ -440,9 +437,8 @@ namespace bluetooth_low_energy_windows
 			const auto status = r.Status();
 			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
 			{
-				const auto status_code = static_cast<int>(status);
-				const auto message = "Get characteristics failed with status: " + std::to_string(status_code);
-				throw BluetoothLowEnergyException(message);
+				result(GattError("Get characteristics", status, r.ProtocolError()));
+				co_return;
 			}
 			const auto characteristics = r.Characteristics();
 			auto characteristics_args = flutter::EncodableList();
@@ -498,9 +494,8 @@ namespace bluetooth_low_energy_windows
 			const auto status = r.Status();
 			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
 			{
-				const auto status_code = static_cast<int>(status);
-				const auto message = "Get descriptors failed with status: " + std::to_string(status_code);
-				throw BluetoothLowEnergyException(message);
+				result(GattError("Get descriptors", status, r.ProtocolError()));
+				co_return;
 			}
 			const auto descriptors = r.Descriptors();
 			auto descriptors_args = flutter::EncodableList();
@@ -541,9 +536,8 @@ namespace bluetooth_low_energy_windows
 			const auto status = r.Status();
 			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
 			{
-				const auto status_code = static_cast<int>(status);
-				const auto message = "Read characteristic failed with status: " + std::to_string(status_code);
-				throw BluetoothLowEnergyException(message);
+				result(GattError("Read characteristic", status, r.ProtocolError()));
+				co_return;
 			}
 			const auto value = r.Value();
 			const auto value_length = value.Length();
@@ -578,12 +572,12 @@ namespace bluetooth_low_energy_windows
 			value_writer.WriteBytes(value_args);
 			const auto value = value_writer.DetachBuffer();
 			const auto option = ArgsToWriteOption(type_args);
-			const auto status = co_await characteristic.WriteValueAsync(value, option);
+			const auto &r = co_await characteristic.WriteValueWithResultAsync(value, option);
+			const auto status = r.Status();
 			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
 			{
-				const auto status_code = static_cast<int>(status);
-				const auto message = "Write characteristic failed with status: " + std::to_string(status_code);
-				throw BluetoothLowEnergyException(message);
+				result(GattError("Write characteristic", status, r.ProtocolError()));
+				co_return;
 			}
 			result(std::nullopt);
 		}
@@ -610,12 +604,12 @@ namespace bluetooth_low_energy_windows
 		{
 			const auto &characteristic = RetrieveCharacteristic(address_args, handle_args);
 			const auto value = ArgsToCCCDescriptorValue(state_args);
-			const auto status = co_await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(value);
+			const auto &r = co_await characteristic.WriteClientCharacteristicConfigurationDescriptorWithResultAsync(value);
+			const auto status = r.Status();
 			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
 			{
-				const auto status_code = static_cast<int>(status);
-				const auto message = "Notify characteristic failed with status: " + std::to_string(status_code);
-				throw BluetoothLowEnergyException(message);
+				result(GattError("Notify characteristic", status, r.ProtocolError()));
+				co_return;
 			}
 			result(std::nullopt);
 		}
@@ -646,9 +640,8 @@ namespace bluetooth_low_energy_windows
 			const auto status = r.Status();
 			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
 			{
-				const auto status_code = static_cast<int>(status);
-				const auto message = "Read descriptor failed with status: " + std::to_string(status_code);
-				throw BluetoothLowEnergyException(message);
+				result(GattError("Read descriptor", status, r.ProtocolError()));
+				co_return;
 			}
 			const auto value = r.Value();
 			const auto value_length = value.Length();
@@ -682,12 +675,12 @@ namespace bluetooth_low_energy_windows
 			const auto value_writer = winrt::Windows::Storage::Streams::DataWriter();
 			value_writer.WriteBytes(value_args);
 			const auto value = value_writer.DetachBuffer();
-			const auto status = co_await descriptor.WriteValueAsync(value);
+			const auto &r = co_await descriptor.WriteValueWithResultAsync(value);
+			const auto status = r.Status();
 			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
 			{
-				const auto status_code = static_cast<int>(status);
-				const auto message = "Write characteristic failed with status: " + std::to_string(status_code);
-				throw BluetoothLowEnergyException(message);
+				result(GattError("Write descriptor", status, r.ProtocolError()));
+				co_return;
 			}
 			result(std::nullopt);
 		}
@@ -986,4 +979,232 @@ namespace bluetooth_low_energy_windows
 			throw std::bad_cast();
 		}
 	}
+
+	// ── ペアリング(暗号化リンクの確立)─────────────────────────────
+	//
+	// 保護された属性は、リンクが暗号化されていないと読み書きできない。
+	// ボンディングしない装置では鍵が保存されないため、接続ごとにここを
+	// 通してから初期読み出しへ進む必要がある。
+
+	void CentralManagerImpl::Pair(int64_t address_args, bool auto_accept_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
+	{
+		PairAsync(address_args, auto_accept_args, std::move(result));
+	}
+
+	void CentralManagerImpl::Unpair(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
+	{
+		UnpairAsync(address_args, std::move(result));
+	}
+
+	ErrorOr<bool> CentralManagerImpl::IsPaired(int64_t address_args)
+	{
+		try
+		{
+			const auto address = static_cast<uint64_t>(address_args);
+			const auto &device = winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromBluetoothAddressAsync(address).get();
+			if (device == nullptr)
+			{
+				return FlutterError("IllegalArgument", "Device not found.");
+			}
+			return device.DeviceInformation().Pairing().IsPaired();
+		}
+		catch (const winrt::hresult_error &ex)
+		{
+			return FlutterError("winrt::hresult_error", winrt::to_string(ex.message()));
+		}
+		catch (const std::exception &ex)
+		{
+			return FlutterError("std::exception", ex.what());
+		}
+	}
+
+	// ConfirmOnly の同意要求をアプリ側で承認する。
+	// これを登録して Accept() すると Windows の同意ダイアログは出ない。
+	void CentralManagerImpl::OnPairingRequested(const winrt::Windows::Devices::Enumeration::DeviceInformationCustomPairing &sender, const winrt::Windows::Devices::Enumeration::DevicePairingRequestedEventArgs &args)
+	{
+		// PIN の入力・表示が要るセレモニーは代行できない。OS/利用者に委ねる。
+		if (args.PairingKind() == winrt::Windows::Devices::Enumeration::DevicePairingKinds::ConfirmOnly)
+		{
+			args.Accept();
+		}
+	}
+
+	winrt::fire_and_forget CentralManagerImpl::PairAsync(int64_t address_args, bool auto_accept_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
+	{
+		try
+		{
+			const auto address = static_cast<uint64_t>(address_args);
+			const auto &device = co_await winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromBluetoothAddressAsync(address);
+			if (device == nullptr)
+			{
+				result(FlutterError("IllegalArgument", "Device not found."));
+				co_return;
+			}
+			const auto &pairing = device.DeviceInformation().Pairing();
+			if (pairing.IsPaired())
+			{
+				result(DevicePairingResultStatusArgs::kAlreadyPaired);
+				co_return;
+			}
+			if (!pairing.CanPair())
+			{
+				result(DevicePairingResultStatusArgs::kNotReadyToPair);
+				co_return;
+			}
+
+			// 既定の PairAsync() は BLE では Failed を返しやすいため、
+			// セレモニーを明示する Custom を使う。
+			const auto &custom = pairing.Custom();
+			winrt::event_token token{};
+			if (auto_accept_args)
+			{
+				token = custom.PairingRequested({this, &CentralManagerImpl::OnPairingRequested});
+			}
+			const auto &pair_result = co_await custom.PairAsync(
+				winrt::Windows::Devices::Enumeration::DevicePairingKinds::ConfirmOnly,
+				// 装置は Just Works(MITM 保護なし)。Encryption 止まりを要求する。
+				winrt::Windows::Devices::Enumeration::DevicePairingProtectionLevel::Encryption);
+			if (auto_accept_args)
+			{
+				custom.PairingRequested(token);
+			}
+			result(PairingStatusToArgs(pair_result.Status()));
+		}
+		catch (const winrt::hresult_error &ex)
+		{
+			result(FlutterError("winrt::hresult_error", winrt::to_string(ex.message())));
+		}
+		catch (const std::exception &ex)
+		{
+			result(FlutterError("std::exception", ex.what()));
+		}
+	}
+
+	winrt::fire_and_forget CentralManagerImpl::UnpairAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
+	{
+		try
+		{
+			const auto address = static_cast<uint64_t>(address_args);
+			const auto &device = co_await winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromBluetoothAddressAsync(address);
+			if (device == nullptr)
+			{
+				result(FlutterError("IllegalArgument", "Device not found."));
+				co_return;
+			}
+			const auto &pairing = device.DeviceInformation().Pairing();
+			if (!pairing.IsPaired())
+			{
+				// 既に解除済み。成功として返す。
+				result(std::nullopt);
+				co_return;
+			}
+			const auto &unpair_result = co_await pairing.UnpairAsync();
+			const auto status = unpair_result.Status();
+			if (status != winrt::Windows::Devices::Enumeration::DeviceUnpairingResultStatus::Unpaired &&
+				status != winrt::Windows::Devices::Enumeration::DeviceUnpairingResultStatus::AlreadyUnpaired)
+			{
+				const auto message = "Unpair failed with status: " + std::to_string(static_cast<int>(status));
+				result(FlutterError("std::exception", message));
+				co_return;
+			}
+			result(std::nullopt);
+		}
+		catch (const winrt::hresult_error &ex)
+		{
+			result(FlutterError("winrt::hresult_error", winrt::to_string(ex.message())));
+		}
+		catch (const std::exception &ex)
+		{
+			result(FlutterError("std::exception", ex.what()));
+		}
+	}
+
+	DevicePairingResultStatusArgs CentralManagerImpl::PairingStatusToArgs(const winrt::Windows::Devices::Enumeration::DevicePairingResultStatus &status)
+	{
+		using winrt::Windows::Devices::Enumeration::DevicePairingResultStatus;
+		switch (status)
+		{
+		case DevicePairingResultStatus::Paired:
+			return DevicePairingResultStatusArgs::kPaired;
+		case DevicePairingResultStatus::NotReadyToPair:
+			return DevicePairingResultStatusArgs::kNotReadyToPair;
+		case DevicePairingResultStatus::NotPaired:
+			return DevicePairingResultStatusArgs::kNotPaired;
+		case DevicePairingResultStatus::AlreadyPaired:
+			return DevicePairingResultStatusArgs::kAlreadyPaired;
+		case DevicePairingResultStatus::ConnectionRejected:
+			return DevicePairingResultStatusArgs::kConnectionRejected;
+		case DevicePairingResultStatus::TooManyConnections:
+			return DevicePairingResultStatusArgs::kTooManyConnections;
+		case DevicePairingResultStatus::HardwareFailure:
+			return DevicePairingResultStatusArgs::kHardwareFailure;
+		case DevicePairingResultStatus::AuthenticationTimeout:
+			return DevicePairingResultStatusArgs::kAuthenticationTimeout;
+		case DevicePairingResultStatus::AuthenticationNotAllowed:
+			return DevicePairingResultStatusArgs::kAuthenticationNotAllowed;
+		case DevicePairingResultStatus::AuthenticationFailure:
+			return DevicePairingResultStatusArgs::kAuthenticationFailure;
+		case DevicePairingResultStatus::NoSupportedProfiles:
+			return DevicePairingResultStatusArgs::kNoSupportedProfiles;
+		case DevicePairingResultStatus::ProtectionLevelCouldNotBeMet:
+			return DevicePairingResultStatusArgs::kProtectionLevelCouldNotBeMet;
+		case DevicePairingResultStatus::AccessDenied:
+			return DevicePairingResultStatusArgs::kAccessDenied;
+		case DevicePairingResultStatus::InvalidCeremonyData:
+			return DevicePairingResultStatusArgs::kInvalidCeremonyData;
+		case DevicePairingResultStatus::PairingCanceled:
+			return DevicePairingResultStatusArgs::kPairingCanceled;
+		case DevicePairingResultStatus::OperationAlreadyInProgress:
+			return DevicePairingResultStatusArgs::kOperationAlreadyInProgress;
+		case DevicePairingResultStatus::RequiredHandlerNotRegistered:
+			return DevicePairingResultStatusArgs::kRequiredHandlerNotRegistered;
+		case DevicePairingResultStatus::RejectedByHandler:
+			return DevicePairingResultStatusArgs::kRejectedByHandler;
+		case DevicePairingResultStatus::RemoteDeviceHasAssociation:
+			return DevicePairingResultStatusArgs::kRemoteDeviceHasAssociation;
+		default:
+			return DevicePairingResultStatusArgs::kFailed;
+		}
+	}
+
+
+	// GATT の失敗を、ATT のエラーコードを保ったまま FlutterError にする。
+	//
+	// GattCommunicationStatus だけでは「装置が拒否した」ことしか分からない。
+	// ProtocolError(ATT のエラーコード)まで返すと、0x05(認証不足)と
+	// 0x0F(暗号化不足)のような区別がつき、呼び出し側が対処を選べる。
+	FlutterError CentralManagerImpl::GattError(const std::string &operation, const winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus &status, const winrt::Windows::Foundation::IReference<uint8_t> &protocol_error)
+	{
+		using winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus;
+		std::string code;
+		switch (status)
+		{
+		case GattCommunicationStatus::Unreachable:
+			code = "Unreachable";
+			break;
+		case GattCommunicationStatus::ProtocolError:
+			code = "ProtocolError";
+			break;
+		case GattCommunicationStatus::AccessDenied:
+			code = "AccessDenied";
+			break;
+		default:
+			code = "Unknown";
+			break;
+		}
+		auto message = operation + " failed with status: " + code;
+		auto details = flutter::EncodableMap{
+			{flutter::EncodableValue("status"), flutter::EncodableValue(static_cast<int32_t>(status))},
+		};
+		if (protocol_error != nullptr)
+		{
+			const auto att = protocol_error.Value();
+			std::stringstream stream;
+			stream << "0x" << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(att);
+			message += ", protocolError: " + stream.str();
+			details.insert({flutter::EncodableValue("protocolError"), flutter::EncodableValue(static_cast<int32_t>(att))});
+		}
+		return FlutterError(code, message, flutter::EncodableValue(details));
+	}
+
 }

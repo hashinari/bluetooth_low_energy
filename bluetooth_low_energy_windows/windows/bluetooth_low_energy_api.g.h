@@ -81,6 +81,34 @@ enum class ConnectionStateArgs {
   kConnected = 1
 };
 
+// Windows の `DevicePairingResultStatus` をそのまま写したもの。
+//
+// 文字列へ潰さず列挙で返すことで、呼び出し側が
+// 「利用者がキャンセルした」「認証がタイムアウトした」「拒否された」を
+// 区別できる。
+enum class DevicePairingResultStatusArgs {
+  kPaired = 0,
+  kNotReadyToPair = 1,
+  kNotPaired = 2,
+  kAlreadyPaired = 3,
+  kConnectionRejected = 4,
+  kTooManyConnections = 5,
+  kHardwareFailure = 6,
+  kAuthenticationTimeout = 7,
+  kAuthenticationNotAllowed = 8,
+  kAuthenticationFailure = 9,
+  kNoSupportedProfiles = 10,
+  kProtectionLevelCouldNotBeMet = 11,
+  kAccessDenied = 12,
+  kInvalidCeremonyData = 13,
+  kPairingCanceled = 14,
+  kOperationAlreadyInProgress = 15,
+  kRequiredHandlerNotRegistered = 16,
+  kRejectedByHandler = 17,
+  kRemoteDeviceHasAssociation = 18,
+  kFailed = 19
+};
+
 enum class GATTCharacteristicPropertyArgs {
   kRead = 0,
   kWrite = 1,
@@ -652,6 +680,28 @@ class CentralManagerHostApi {
     int64_t handle_args,
     const std::vector<uint8_t>& value_args,
     std::function<void(std::optional<FlutterError> reply)> result) = 0;
+  // ペアリング(暗号化リンクの確立)を開始し、結果が出るまで待つ。
+  //
+  // 保護された属性は、リンクが暗号化されていないと読み書きできない。
+  // ボンディングしない装置では鍵が保存されないため、**接続ごとに**
+  // これを済ませてから初期読み出しへ進む必要がある。
+  //
+  // [autoAcceptArgs] が true のとき、`ConfirmOnly` の同意要求を
+  // アプリ側で自動承認する(Windows の同意ダイアログは出ない)。
+  // false のときは承認しないため、OS の判断に委ねられる。
+  //
+  // 失敗を例外にせず結果として返すので、キャンセル・タイムアウト・拒否を
+  // 呼び出し側で区別できる。
+  virtual void Pair(
+    int64_t address_args,
+    bool auto_accept_args,
+    std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result) = 0;
+  // OS が保持しているペアリング(関連付け)を解除する。接続は不要。
+  virtual void Unpair(
+    int64_t address_args,
+    std::function<void(std::optional<FlutterError> reply)> result) = 0;
+  // OS がこの装置をペアリング済みとみなしているか。接続は不要。
+  virtual ErrorOr<bool> IsPaired(int64_t address_args) = 0;
 
   // The codec used by CentralManagerHostApi.
   static const flutter::StandardMessageCodec& GetCodec();

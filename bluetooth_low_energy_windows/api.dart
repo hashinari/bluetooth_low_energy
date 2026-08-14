@@ -25,6 +25,34 @@ enum AdvertisementTypeArgs {
 
 enum ConnectionStateArgs { disconnected, connected }
 
+/// Windows の `DevicePairingResultStatus` をそのまま写したもの。
+///
+/// 文字列へ潰さず列挙で返すことで、呼び出し側が
+/// 「利用者がキャンセルした」「認証がタイムアウトした」「拒否された」を
+/// 区別できる。
+enum DevicePairingResultStatusArgs {
+  paired,
+  notReadyToPair,
+  notPaired,
+  alreadyPaired,
+  connectionRejected,
+  tooManyConnections,
+  hardwareFailure,
+  authenticationTimeout,
+  authenticationNotAllowed,
+  authenticationFailure,
+  noSupportedProfiles,
+  protectionLevelCouldNotBeMet,
+  accessDenied,
+  invalidCeremonyData,
+  pairingCanceled,
+  operationAlreadyInProgress,
+  requiredHandlerNotRegistered,
+  rejectedByHandler,
+  remoteDeviceHasAssociation,
+  failed,
+}
+
 enum GATTCharacteristicPropertyArgs {
   read,
   write,
@@ -268,6 +296,28 @@ abstract class CentralManagerHostApi {
   );
   @async
   void writeDescriptor(int addressArgs, int handleArgs, Uint8List valueArgs);
+
+  /// ペアリング(暗号化リンクの確立)を開始し、結果が出るまで待つ。
+  ///
+  /// 保護された属性は、リンクが暗号化されていないと読み書きできない。
+  /// ボンディングしない装置では鍵が保存されないため、**接続ごとに**
+  /// これを済ませてから初期読み出しへ進む必要がある。
+  ///
+  /// [autoAcceptArgs] が true のとき、`ConfirmOnly` の同意要求を
+  /// アプリ側で自動承認する(Windows の同意ダイアログは出ない)。
+  /// false のときは承認しないため、OS の判断に委ねられる。
+  ///
+  /// 失敗を例外にせず結果として返すので、キャンセル・タイムアウト・拒否を
+  /// 呼び出し側で区別できる。
+  @async
+  DevicePairingResultStatusArgs pair(int addressArgs, bool autoAcceptArgs);
+
+  /// OS が保持しているペアリング(関連付け)を解除する。接続は不要。
+  @async
+  void unpair(int addressArgs);
+
+  /// OS がこの装置をペアリング済みとみなしているか。接続は不要。
+  bool isPaired(int addressArgs);
 }
 
 @FlutterApi()
