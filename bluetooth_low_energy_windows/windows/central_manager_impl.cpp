@@ -1048,7 +1048,11 @@ namespace bluetooth_low_energy_windows
 				result(FlutterError("IllegalArgument", "Device not found."));
 				co_return;
 			}
-			const auto &pairing = device.DeviceInformation().Pairing();
+			// BluetoothLEDevice.DeviceInformation() は関連付けの情報が
+			// 揃っておらず、そのまま PairAsync すると即 Failed になることが
+			// ある。Id から取り直したものを使う。
+			const auto &device_information = co_await winrt::Windows::Devices::Enumeration::DeviceInformation::CreateFromIdAsync(device.DeviceInformation().Id());
+			const auto &pairing = device_information.Pairing();
 			if (pairing.IsPaired())
 			{
 				result(DevicePairingResultStatusArgs::kAlreadyPaired);
@@ -1068,10 +1072,12 @@ namespace bluetooth_low_energy_windows
 			{
 				token = custom.PairingRequested({this, &CentralManagerImpl::OnPairingRequested});
 			}
+			// 保護レベルは装置が要求するものに合わせる。こちらから
+			// Encryption などを指定すると、満たせない相手で失敗する。
 			const auto &pair_result = co_await custom.PairAsync(
-				winrt::Windows::Devices::Enumeration::DevicePairingKinds::ConfirmOnly,
-				// 装置は Just Works(MITM 保護なし)。Encryption 止まりを要求する。
-				winrt::Windows::Devices::Enumeration::DevicePairingProtectionLevel::Encryption);
+				winrt::Windows::Devices::Enumeration::DevicePairingKinds::ConfirmOnly |
+					winrt::Windows::Devices::Enumeration::DevicePairingKinds::ProvidePin,
+				pairing.ProtectionLevel());
 			if (auto_accept_args)
 			{
 				custom.PairingRequested(token);
