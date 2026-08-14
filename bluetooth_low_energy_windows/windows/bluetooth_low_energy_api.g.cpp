@@ -1693,14 +1693,15 @@ void CentralManagerHostApi::SetUp(
             return;
           }
           const int64_t address_args_arg = encodable_address_args_arg.LongValue();
-          ErrorOr<bool> output = api->IsPaired(address_args_arg);
-          if (output.has_error()) {
-            reply(WrapError(output.error()));
-            return;
-          }
-          EncodableList wrapped;
-          wrapped.push_back(EncodableValue(std::move(output).TakeValue()));
-          reply(EncodableValue(std::move(wrapped)));
+          api->IsPaired(address_args_arg, [reply](ErrorOr<bool>&& output) {
+            if (output.has_error()) {
+              reply(WrapError(output.error()));
+              return;
+            }
+            EncodableList wrapped;
+            wrapped.push_back(EncodableValue(std::move(output).TakeValue()));
+            reply(EncodableValue(std::move(wrapped)));
+          });
         } catch (const std::exception& exception) {
           reply(WrapError(exception.what()));
         }

@@ -317,6 +317,10 @@ abstract class CentralManagerHostApi {
   void unpair(int addressArgs);
 
   /// OS がこの装置をペアリング済みとみなしているか。接続は不要。
+  ///
+  /// WinRT はプラットフォームスレッド(STA)でのブロック待ちを禁じているため、
+  /// 同期メソッドにはできない(`.get()` が `!is_sta_thread()` で落ちる)。
+  @async
   bool isPaired(int addressArgs);
 }
 

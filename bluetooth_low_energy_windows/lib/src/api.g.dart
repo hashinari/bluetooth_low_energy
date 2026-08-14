@@ -1415,6 +1415,9 @@ class CentralManagerHostApi {
   }
 
   /// OS がこの装置をペアリング済みとみなしているか。接続は不要。
+  ///
+  /// WinRT はプラットフォームスレッド(STA)でのブロック待ちを禁じているため、
+  /// 同期メソッドにはできない(`.get()` が `!is_sta_thread()` で落ちる)。
   Future<bool> isPaired(int addressArgs) async {
     final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.isPaired$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(

@@ -701,7 +701,12 @@ class CentralManagerHostApi {
     int64_t address_args,
     std::function<void(std::optional<FlutterError> reply)> result) = 0;
   // OS がこの装置をペアリング済みとみなしているか。接続は不要。
-  virtual ErrorOr<bool> IsPaired(int64_t address_args) = 0;
+  //
+  // WinRT はプラットフォームスレッド(STA)でのブロック待ちを禁じているため、
+  // 同期メソッドにはできない(`.get()` が `!is_sta_thread()` で落ちる)。
+  virtual void IsPaired(
+    int64_t address_args,
+    std::function<void(ErrorOr<bool> reply)> result) = 0;
 
   // The codec used by CentralManagerHostApi.
   static const flutter::StandardMessageCodec& GetCodec();

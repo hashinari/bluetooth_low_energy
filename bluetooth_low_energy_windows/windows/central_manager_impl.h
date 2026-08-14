@@ -47,7 +47,7 @@ namespace bluetooth_low_energy_windows
 		void WriteDescriptor(int64_t address_args, int64_t handle_args, const std::vector<uint8_t> &value_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		void Pair(int64_t address_args, bool auto_accept_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result) override;
 		void Unpair(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result) override;
-		ErrorOr<bool> IsPaired(int64_t address_args) override;
+		void IsPaired(int64_t address_args, std::function<void(ErrorOr<bool> reply)> result) override;
 
 	private:
 		std::optional<CentralManagerFlutterApi> m_api;
@@ -78,6 +78,7 @@ namespace bluetooth_low_energy_windows
 		winrt::fire_and_forget WriteDescriptorAsync(int64_t address_args, int64_t handle_args, const std::vector<uint8_t> &value_args, std::function<void(std::optional<FlutterError> reply)> result);
 		winrt::fire_and_forget PairAsync(int64_t address_args, bool auto_accept_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result);
 		winrt::fire_and_forget UnpairAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result);
+		winrt::fire_and_forget IsPairedAsync(int64_t address_args, std::function<void(ErrorOr<bool> reply)> result);
 		// ConfirmOnly の同意要求を自動承認するハンドラ。
 		void OnPairingRequested(const winrt::Windows::Devices::Enumeration::DeviceInformationCustomPairing &sender, const winrt::Windows::Devices::Enumeration::DevicePairingRequestedEventArgs &args);
 		static DevicePairingResultStatusArgs PairingStatusToArgs(const winrt::Windows::Devices::Enumeration::DevicePairingResultStatus &status);

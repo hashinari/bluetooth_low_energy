@@ -996,25 +996,33 @@ namespace bluetooth_low_energy_windows
 		UnpairAsync(address_args, std::move(result));
 	}
 
-	ErrorOr<bool> CentralManagerImpl::IsPaired(int64_t address_args)
+	void CentralManagerImpl::IsPaired(int64_t address_args, std::function<void(ErrorOr<bool> reply)> result)
+	{
+		IsPairedAsync(address_args, std::move(result));
+	}
+
+	// WinRT はプラットフォームスレッド(STA)でのブロック待ちを禁じている。
+	// `.get()` で待つと `!is_sta_thread()` の表明で落ちるため、コルーチンにする。
+	winrt::fire_and_forget CentralManagerImpl::IsPairedAsync(int64_t address_args, std::function<void(ErrorOr<bool> reply)> result)
 	{
 		try
 		{
 			const auto address = static_cast<uint64_t>(address_args);
-			const auto &device = winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromBluetoothAddressAsync(address).get();
+			const auto &device = co_await winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromBluetoothAddressAsync(address);
 			if (device == nullptr)
 			{
-				return FlutterError("IllegalArgument", "Device not found.");
+				result(FlutterError("IllegalArgument", "Device not found."));
+				co_return;
 			}
-			return device.DeviceInformation().Pairing().IsPaired();
+			result(device.DeviceInformation().Pairing().IsPaired());
 		}
 		catch (const winrt::hresult_error &ex)
 		{
-			return FlutterError("winrt::hresult_error", winrt::to_string(ex.message()));
+			result(FlutterError("winrt::hresult_error", winrt::to_string(ex.message())));
 		}
 		catch (const std::exception &ex)
 		{
-			return FlutterError("std::exception", ex.what());
+			result(FlutterError("std::exception", ex.what()));
 		}
 	}
 
