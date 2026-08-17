@@ -273,6 +273,15 @@ namespace bluetooth_low_energy_windows
 		{
 			const auto address = static_cast<uint64_t>(address_args);
 			const auto &device = co_await winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromBluetoothAddressAsync(address);
+			if (device == nullptr)
+			{
+				// 未ペアリングかつシステムキャッシュに無い装置では null が
+				// 返る(公式文書)。GATT の Unreachable と区別できるよう
+				// 明示エラーにする。
+				const auto error = FlutterError("DeviceNotFound", "FromBluetoothAddressAsync returned null (device not in system cache)");
+				result(error);
+				co_return;
+			}
 			const auto id = device.BluetoothDeviceId();
 			const auto &session = co_await winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattSession::FromDeviceIdAsync(id);
 			// Creating a BluetoothLEDevice object by calling this method alone doesn't (necessarily) initiate a
@@ -284,7 +293,25 @@ namespace bluetooth_low_energy_windows
 			const auto status = r.Status();
 			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
 			{
-				result(GattError("Connect", status, r.ProtocolError()));
+				// 調査用: Windows がどのアドレス種別で接続を試みたかを
+				// エラーメッセージに添える(未ペアリング時に Unreachable に
+				// なる問題の切り分け ── 種別を取り違えていると相手が応答
+				// せず 7 秒でタイムアウトする)。
+				std::string operation = "Connect(addressType=";
+				switch (device.BluetoothAddressType())
+				{
+				case winrt::Windows::Devices::Bluetooth::BluetoothAddressType::Public:
+					operation += "Public";
+					break;
+				case winrt::Windows::Devices::Bluetooth::BluetoothAddressType::Random:
+					operation += "Random";
+					break;
+				default:
+					operation += "Unspecified";
+					break;
+				}
+				operation += ")";
+				result(GattError(operation, status, r.ProtocolError()));
 				co_return;
 			}
 			const auto peripheral_args = PeripheralArgs(address_args);
