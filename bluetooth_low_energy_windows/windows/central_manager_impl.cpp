@@ -108,7 +108,8 @@ namespace bluetooth_low_energy_windows
 			auto &api = m_api.value();
 			const auto peripheral_args = PeripheralArgs(address_args);
 			const auto state_args = ConnectionStateArgs::kDisconnected;
-			// TODO: Make this thread safe when this issue closed: https://github.com/flutter/flutter/issues/134346.
+			// ホスト呼び出し(同期)はプラットフォームスレッドで届くため、
+			// ここからの送信はそのままで良い。
 			api.OnConnectionStateChanged(peripheral_args, state_args, [] {}, [](auto error) {});
 			return std::nullopt;
 		}
@@ -212,11 +213,9 @@ namespace bluetooth_low_energy_windows
 						winrt::auto_revoke,
 						[this](winrt::Windows::Devices::Radios::Radio radio, auto obj)
 						{
-							auto &api = m_api.value();
 							const auto state = radio.State();
 							const auto state_args = RadioStateToArgs(state);
-							// TODO: Make this thread safe when this issue closed: https://github.com/flutter/flutter/issues/134346.
-							api.OnStateChanged(state_args, [] {}, [](auto error) {});
+							NotifyStateChanged(state_args);
 						});
 					m_radio = radio;
 				}
@@ -235,7 +234,6 @@ namespace bluetooth_low_energy_windows
 				winrt::auto_revoke,
 				[this](winrt::Windows::Devices::Bluetooth::Advertisement::BluetoothLEAdvertisementWatcher watcher, winrt::Windows::Devices::Bluetooth::Advertisement::BluetoothLEAdvertisementReceivedEventArgs event_args)
 				{
-					auto &api = m_api.value();
 					const auto address = event_args.BluetoothAddress();
 					const auto address_args = static_cast<int64_t>(address);
 					const auto peripheral_args = PeripheralArgs(address_args);
@@ -248,8 +246,7 @@ namespace bluetooth_low_energy_windows
 					const auto type_args = AdvertisementTypeToArgs(type);
 					const auto advertisement = event_args.Advertisement();
 					const auto advertisement_args = AdvertisementToArgs(advertisement);
-					// TODO: Make this thread safe when this issue closed: https://github.com/flutter/flutter/issues/134346.
-					api.OnDiscovered(peripheral_args, rssi_args, timestamp_args, type_args, advertisement_args, [] {}, [](auto error) {});
+					NotifyDiscovered(peripheral_args, rssi_args, timestamp_args, type_args, advertisement_args);
 				});
 			result(std::nullopt);
 		}
@@ -290,11 +287,16 @@ namespace bluetooth_low_energy_windows
 				result(GattError("Connect", status, r.ProtocolError()));
 				co_return;
 			}
-			auto &api = m_api.value();
 			const auto peripheral_args = PeripheralArgs(address_args);
 			const auto state_args = ConnectionStateArgs::kConnected;
 			const auto mtu = session.MaxPduSize();
 			const auto mtu_args = static_cast<int64_t>(mtu);
+			// co_await の再開後はスレッドプール上に居る。イベント送出・
+			// ハンドラ登録・内部マップの更新・result 応答をプラットフォーム
+			// スレッドで行うため、ここで一度戻す。
+			const auto ui_thread = m_ui_thread;
+			co_await ui_thread;
+			auto &api = m_api.value();
 			api.OnConnectionStateChanged(peripheral_args, state_args, [] {}, [](auto error) {});
 			api.OnMTUChanged(peripheral_args, mtu_args, [] {}, [](auto error) {});
 			m_device_connection_status_changed_revokers[address_args] = device.ConnectionStatusChanged(
@@ -302,25 +304,15 @@ namespace bluetooth_low_energy_windows
 				[this, address_args](winrt::Windows::Devices::Bluetooth::BluetoothLEDevice device, auto obj)
 				{
 					const auto status = device.ConnectionStatus();
-					if (status == winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus::Disconnected)
-					{
-						OnDisconnected(address_args);
-					}
-					auto &api = m_api.value();
-					const auto peripheral_args = PeripheralArgs(address_args);
-					const auto state_args = ConnectionStatusToArgs(status);
-					// TODO: Make this thread safe when this issue closed: https://github.com/flutter/flutter/issues/134346.
-					api.OnConnectionStateChanged(peripheral_args, state_args, [] {}, [](auto error) {});
+					HandleConnectionStatusChanged(address_args, status);
 				});
 			m_session_max_pdu_size_changed_revokers[address_args] = session.MaxPduSizeChanged(
 				winrt::auto_revoke,
 				[this, peripheral_args](winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattSession session, auto obj)
 				{
-					auto &api = m_api.value();
 					const auto mtu = session.MaxPduSize();
 					const auto mtu_args = static_cast<int64_t>(mtu);
-					// TODO: Make this thread safe when this issue closed: https://github.com/flutter/flutter/issues/134346.
-					api.OnMTUChanged(peripheral_args, mtu_args, [] {}, [](auto error) {});
+					NotifyMTUChanged(peripheral_args, mtu_args);
 				});
 			m_devices[address_args] = device;
 			m_sessions[address_args] = session;
@@ -451,7 +443,6 @@ namespace bluetooth_low_energy_windows
 					winrt::auto_revoke,
 					[this, address_args](const winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCharacteristic &characteristic, const winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattValueChangedEventArgs &event_args)
 					{
-						auto &api = m_api.value();
 						const auto peripheral_args = PeripheralArgs(address_args);
 						const auto characteristic_args = CharacteristicToArgs(characteristic);
 						const auto value = event_args.CharacteristicValue();
@@ -459,8 +450,7 @@ namespace bluetooth_low_energy_windows
 						auto value_args = std::vector<uint8_t>(value_length);
 						const auto value_reader = winrt::Windows::Storage::Streams::DataReader::FromBuffer(value);
 						value_reader.ReadBytes(value_args);
-						// TODO: Make this thread safe when this issue closed: https://github.com/flutter/flutter/issues/134346.
-						api.OnCharacteristicNotified(peripheral_args, characteristic_args, value_args, []() {}, [](const auto &error) {});
+						NotifyCharacteristicNotified(peripheral_args, characteristic_args, std::move(value_args));
 					});
 				m_characteristics[address_args][characteristic_handle_args] = characteristic;
 				characteristics_args.emplace_back(characteristic_args_value);
@@ -1215,6 +1205,94 @@ namespace bluetooth_low_energy_windows
 			details.insert({flutter::EncodableValue("protocolError"), flutter::EncodableValue(static_cast<int32_t>(att))});
 		}
 		return FlutterError(code, message, flutter::EncodableValue(details));
+	}
+
+	// ── WinRT イベント → Flutter の中継 ──
+	//
+	// WinRT のイベントはスレッドプール上で発火するが、Flutter のチャネル
+	// 送信はプラットフォームスレッドからしか行えない(他スレッドからの
+	// 送信はエンジンが検出してエラーを出し、欠落やクラッシュの原因に
+	// なる)。生成時に捕捉した apartment(m_ui_thread)へ co_await で
+	// 戻してから送る。
+	// fire_and_forget から例外が漏れると std::terminate になるため、
+	// 中継の失敗は握りつぶす(イベント通知は元々ベストエフォート)。
+
+	winrt::fire_and_forget CentralManagerImpl::NotifyStateChanged(BluetoothLowEnergyStateArgs state_args)
+	{
+		try
+		{
+			const auto ui_thread = m_ui_thread;
+			co_await ui_thread;
+			auto &api = m_api.value();
+			api.OnStateChanged(state_args, [] {}, [](auto error) {});
+		}
+		catch (...)
+		{
+		}
+	}
+
+	winrt::fire_and_forget CentralManagerImpl::NotifyDiscovered(PeripheralArgs peripheral_args, int64_t rssi_args, int64_t timestamp_args, AdvertisementTypeArgs type_args, AdvertisementArgs advertisement_args)
+	{
+		try
+		{
+			const auto ui_thread = m_ui_thread;
+			co_await ui_thread;
+			auto &api = m_api.value();
+			api.OnDiscovered(peripheral_args, rssi_args, timestamp_args, type_args, advertisement_args, [] {}, [](auto error) {});
+		}
+		catch (...)
+		{
+		}
+	}
+
+	winrt::fire_and_forget CentralManagerImpl::NotifyMTUChanged(PeripheralArgs peripheral_args, int64_t mtu_args)
+	{
+		try
+		{
+			const auto ui_thread = m_ui_thread;
+			co_await ui_thread;
+			auto &api = m_api.value();
+			api.OnMTUChanged(peripheral_args, mtu_args, [] {}, [](auto error) {});
+		}
+		catch (...)
+		{
+		}
+	}
+
+	winrt::fire_and_forget CentralManagerImpl::NotifyCharacteristicNotified(PeripheralArgs peripheral_args, GATTCharacteristicArgs characteristic_args, std::vector<uint8_t> value_args)
+	{
+		try
+		{
+			const auto ui_thread = m_ui_thread;
+			co_await ui_thread;
+			auto &api = m_api.value();
+			api.OnCharacteristicNotified(peripheral_args, characteristic_args, value_args, []() {}, [](const auto &error) {});
+		}
+		catch (...)
+		{
+		}
+	}
+
+	winrt::fire_and_forget CentralManagerImpl::HandleConnectionStatusChanged(int64_t address_args, winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus status)
+	{
+		try
+		{
+			const auto ui_thread = m_ui_thread;
+			co_await ui_thread;
+			// 切断時の後片付け(内部マップの変更)もプラットフォーム
+			// スレッドで行い、マップの変更を 1 スレッドに寄せる。
+			if (status == winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus::Disconnected)
+			{
+				OnDisconnected(address_args);
+			}
+			auto &api = m_api.value();
+			const auto peripheral_args = PeripheralArgs(address_args);
+			const auto state_args = ConnectionStatusToArgs(status);
+			api.OnConnectionStateChanged(peripheral_args, state_args, [] {}, [](auto error) {});
+		}
+		catch (...)
+		{
+		}
 	}
 
 }

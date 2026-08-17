@@ -50,6 +50,14 @@ namespace bluetooth_low_energy_windows
 		void IsPaired(int64_t address_args, std::function<void(ErrorOr<bool> reply)> result) override;
 
 	private:
+		// プラットフォームスレッド(= このオブジェクトが生成される
+		// プラグイン登録時のスレッド)の apartment。WinRT のイベントは
+		// スレッドプール上で発火するが、Flutter のチャネル送信は
+		// プラットフォームスレッドからしか行えないため、イベントを
+		// Flutter へ流す前に co_await でここへ戻す。
+		// (Flutter の Windows ランナーは main で CoInitializeEx(STA) を
+		// 呼び、Win32 メッセージループを回している前提)
+		winrt::apartment_context m_ui_thread;
 		std::optional<CentralManagerFlutterApi> m_api;
 		std::optional<winrt::Windows::Devices::Bluetooth::Advertisement::BluetoothLEAdvertisementWatcher> m_watcher;
 		std::optional<winrt::Windows::Devices::Bluetooth::BluetoothAdapter> m_adapter;
@@ -79,6 +87,18 @@ namespace bluetooth_low_energy_windows
 		winrt::fire_and_forget PairAsync(int64_t address_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result);
 		winrt::fire_and_forget UnpairAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result);
 		winrt::fire_and_forget IsPairedAsync(int64_t address_args, std::function<void(ErrorOr<bool> reply)> result);
+		// ── WinRT イベント → Flutter の中継(プラットフォームスレッドへ
+		//     戻してから送る)──
+		// 引数は値渡し。イベントハンドラのスレッドで組み立てた値を
+		// コルーチンの再開後も安全に使うため。
+		winrt::fire_and_forget NotifyStateChanged(BluetoothLowEnergyStateArgs state_args);
+		winrt::fire_and_forget NotifyDiscovered(PeripheralArgs peripheral_args, int64_t rssi_args, int64_t timestamp_args, AdvertisementTypeArgs type_args, AdvertisementArgs advertisement_args);
+		winrt::fire_and_forget NotifyMTUChanged(PeripheralArgs peripheral_args, int64_t mtu_args);
+		winrt::fire_and_forget NotifyCharacteristicNotified(PeripheralArgs peripheral_args, GATTCharacteristicArgs characteristic_args, std::vector<uint8_t> value_args);
+		// 切断時の後片付け(OnDisconnected)も含めてプラットフォーム
+		// スレッドで行う(内部マップの変更を 1 スレッドに寄せる)。
+		winrt::fire_and_forget HandleConnectionStatusChanged(int64_t address_args, winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus status);
+
 		// ConfirmOnly の同意要求を受理するハンドラ。カスタムペアリングは
 		// これが Accept() しないと RequiredHandlerNotRegistered /
 		// RejectedByHandler で失敗するため、常に登録する。
