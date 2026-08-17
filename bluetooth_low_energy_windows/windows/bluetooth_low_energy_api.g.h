@@ -686,15 +686,16 @@ class CentralManagerHostApi {
   // ボンディングしない装置では鍵が保存されないため、**接続ごとに**
   // これを済ませてから初期読み出しへ進む必要がある。
   //
-  // [autoAcceptArgs] が true のとき、`ConfirmOnly` の同意要求を
-  // アプリ側で自動承認する(Windows の同意ダイアログは出ない)。
-  // false のときは承認しないため、OS の判断に委ねられる。
+  // デスクトップでは同意は必ずシステムダイアログで行われ、アプリからは
+  // 抑止できない(Microsoft の文書と実測の両方で確認)。アプリ側の
+  // PairingRequested ハンドラは、ConfirmOnly を受理するために常に登録する
+  // (登録しないと RequiredHandlerNotRegistered / RejectedByHandler で
+  // 失敗する)。つまり「自動承認するか」という選択肢は存在しない。
   //
   // 失敗を例外にせず結果として返すので、キャンセル・タイムアウト・拒否を
   // 呼び出し側で区別できる。
   virtual void Pair(
     int64_t address_args,
-    bool auto_accept_args,
     std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result) = 0;
   // OS が保持しているペアリング(関連付け)を解除する。接続は不要。
   virtual void Unpair(

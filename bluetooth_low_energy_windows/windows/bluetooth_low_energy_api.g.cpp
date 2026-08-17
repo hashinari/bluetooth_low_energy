@@ -1629,13 +1629,7 @@ void CentralManagerHostApi::SetUp(
             return;
           }
           const int64_t address_args_arg = encodable_address_args_arg.LongValue();
-          const auto& encodable_auto_accept_args_arg = args.at(1);
-          if (encodable_auto_accept_args_arg.IsNull()) {
-            reply(WrapError("auto_accept_args_arg unexpectedly null."));
-            return;
-          }
-          const auto& auto_accept_args_arg = std::get<bool>(encodable_auto_accept_args_arg);
-          api->Pair(address_args_arg, auto_accept_args_arg, [reply](ErrorOr<DevicePairingResultStatusArgs>&& output) {
+          api->Pair(address_args_arg, [reply](ErrorOr<DevicePairingResultStatusArgs>&& output) {
             if (output.has_error()) {
               reply(WrapError(output.error()));
               return;

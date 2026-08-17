@@ -45,7 +45,7 @@ namespace bluetooth_low_energy_windows
 		void SetCharacteristicNotifyState(int64_t address_args, int64_t handle_args, const GATTCharacteristicNotifyStateArgs &state_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		void ReadDescriptor(int64_t address_args, int64_t handle_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<std::vector<uint8_t>> reply)> result) override;
 		void WriteDescriptor(int64_t address_args, int64_t handle_args, const std::vector<uint8_t> &value_args, std::function<void(std::optional<FlutterError> reply)> result) override;
-		void Pair(int64_t address_args, bool auto_accept_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result) override;
+		void Pair(int64_t address_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result) override;
 		void Unpair(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		void IsPaired(int64_t address_args, std::function<void(ErrorOr<bool> reply)> result) override;
 
@@ -76,10 +76,13 @@ namespace bluetooth_low_energy_windows
 		winrt::fire_and_forget SetCharacteristicNotifyStateAsync(int64_t address_args, int64_t handle_args, const GATTCharacteristicNotifyStateArgs &state_args, std::function<void(std::optional<FlutterError> reply)> result);
 		winrt::fire_and_forget ReadDescriptorAsync(int64_t address_args, int64_t handle_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<std::vector<uint8_t>> reply)> result);
 		winrt::fire_and_forget WriteDescriptorAsync(int64_t address_args, int64_t handle_args, const std::vector<uint8_t> &value_args, std::function<void(std::optional<FlutterError> reply)> result);
-		winrt::fire_and_forget PairAsync(int64_t address_args, bool auto_accept_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result);
+		winrt::fire_and_forget PairAsync(int64_t address_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result);
 		winrt::fire_and_forget UnpairAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result);
 		winrt::fire_and_forget IsPairedAsync(int64_t address_args, std::function<void(ErrorOr<bool> reply)> result);
-		// ConfirmOnly の同意要求を自動承認するハンドラ。
+		// ConfirmOnly の同意要求を受理するハンドラ。カスタムペアリングは
+		// これが Accept() しないと RequiredHandlerNotRegistered /
+		// RejectedByHandler で失敗するため、常に登録する。
+		// (デスクトップの同意はシステムダイアログが担い、抑止できない)
 		void OnPairingRequested(const winrt::Windows::Devices::Enumeration::DeviceInformationCustomPairing &sender, const winrt::Windows::Devices::Enumeration::DevicePairingRequestedEventArgs &args);
 		static DevicePairingResultStatusArgs PairingStatusToArgs(const winrt::Windows::Devices::Enumeration::DevicePairingResultStatus &status);
 		// GATT の失敗を、ATT のエラーコードを保ったまま FlutterError にする。

@@ -1356,20 +1356,22 @@ class CentralManagerHostApi {
   /// ボンディングしない装置では鍵が保存されないため、**接続ごとに**
   /// これを済ませてから初期読み出しへ進む必要がある。
   ///
-  /// [autoAcceptArgs] が true のとき、`ConfirmOnly` の同意要求を
-  /// アプリ側で自動承認する(Windows の同意ダイアログは出ない)。
-  /// false のときは承認しないため、OS の判断に委ねられる。
+  /// デスクトップでは同意は必ずシステムダイアログで行われ、アプリからは
+  /// 抑止できない(Microsoft の文書と実測の両方で確認)。アプリ側の
+  /// PairingRequested ハンドラは、ConfirmOnly を受理するために常に登録する
+  /// (登録しないと RequiredHandlerNotRegistered / RejectedByHandler で
+  /// 失敗する)。つまり「自動承認するか」という選択肢は存在しない。
   ///
   /// 失敗を例外にせず結果として返すので、キャンセル・タイムアウト・拒否を
   /// 呼び出し側で区別できる。
-  Future<DevicePairingResultStatusArgs> pair(int addressArgs, bool autoAcceptArgs) async {
+  Future<DevicePairingResultStatusArgs> pair(int addressArgs) async {
     final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.pair$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[addressArgs, autoAcceptArgs]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[addressArgs]);
     final List<Object?>? pigeonVar_replyList =
         await pigeonVar_sendFuture as List<Object?>?;
     if (pigeonVar_replyList == null) {

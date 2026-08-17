@@ -278,23 +278,19 @@ final class CentralManagerImpl
   /// ボンディングしない装置では鍵が保存されないため、**接続ごとに**
   /// これを済ませてから初期読み出しへ進む必要がある。
   ///
-  /// [autoAccept] が true のとき `ConfirmOnly` の同意要求を自動承認する
-  /// (Windows の同意ダイアログは出ない)。装置が Just Works の場合、
-  /// 利用者が押すのと承認内容は変わらない。ボンディングあり運用へ切り替える
-  /// 可能性があるため、選べる形にしてある。
+  /// デスクトップでは同意は必ずシステムダイアログで行われ、アプリからは
+  /// 抑止できない(Microsoft の文書と実測の両方で確認)。承認完了まで
+  /// この Future は解決しない(初回は利用者の操作時間がかかる)。
   ///
   /// 失敗は例外にせず [DevicePairingResultStatus] として返す。呼び出し側は
   /// キャンセル・タイムアウト・拒否を区別できる。
-  Future<DevicePairingResultStatus> pair(
-    Peripheral peripheral, {
-    bool autoAccept = true,
-  }) async {
+  Future<DevicePairingResultStatus> pair(Peripheral peripheral) async {
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }
     final addressArgs = peripheral.address;
-    _logger.info('pair: $addressArgs - autoAccept: $autoAccept');
-    final statusArgs = await _api.pair(addressArgs, autoAccept);
+    _logger.info('pair: $addressArgs');
+    final statusArgs = await _api.pair(addressArgs);
     _logger.info('pair: $addressArgs -> $statusArgs');
     return statusArgs.toStatus();
   }

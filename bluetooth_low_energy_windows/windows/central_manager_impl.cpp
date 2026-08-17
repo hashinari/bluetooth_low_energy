@@ -986,9 +986,9 @@ namespace bluetooth_low_energy_windows
 	// ボンディングしない装置では鍵が保存されないため、接続ごとにここを
 	// 通してから初期読み出しへ進む必要がある。
 
-	void CentralManagerImpl::Pair(int64_t address_args, bool auto_accept_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
+	void CentralManagerImpl::Pair(int64_t address_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
 	{
-		PairAsync(address_args, auto_accept_args, std::move(result));
+		PairAsync(address_args, std::move(result));
 	}
 
 	void CentralManagerImpl::Unpair(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
@@ -1037,7 +1037,7 @@ namespace bluetooth_low_energy_windows
 		}
 	}
 
-	winrt::fire_and_forget CentralManagerImpl::PairAsync(int64_t address_args, bool auto_accept_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
+	winrt::fire_and_forget CentralManagerImpl::PairAsync(int64_t address_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
 	{
 		try
 		{
@@ -1067,21 +1067,17 @@ namespace bluetooth_low_energy_windows
 			// 既定の PairAsync() は BLE では Failed を返しやすいため、
 			// セレモニーを明示する Custom を使う。
 			const auto &custom = pairing.Custom();
-			winrt::event_token token{};
-			if (auto_accept_args)
-			{
-				token = custom.PairingRequested({this, &CentralManagerImpl::OnPairingRequested});
-			}
+			// ハンドラは常に登録する。ConfirmOnly は Accept() しないと
+			// 失敗する仕様で、デスクトップの同意はこれと別にシステム
+			// ダイアログが担う(アプリからは抑止できない)。
+			const auto token = custom.PairingRequested({this, &CentralManagerImpl::OnPairingRequested});
 			// 保護レベルは装置が要求するものに合わせる。こちらから
 			// Encryption などを指定すると、満たせない相手で失敗する。
 			const auto &pair_result = co_await custom.PairAsync(
 				winrt::Windows::Devices::Enumeration::DevicePairingKinds::ConfirmOnly |
 					winrt::Windows::Devices::Enumeration::DevicePairingKinds::ProvidePin,
 				pairing.ProtectionLevel());
-			if (auto_accept_args)
-			{
-				custom.PairingRequested(token);
-			}
+			custom.PairingRequested(token);
 			result(PairingStatusToArgs(pair_result.Status()));
 		}
 		catch (const winrt::hresult_error &ex)
