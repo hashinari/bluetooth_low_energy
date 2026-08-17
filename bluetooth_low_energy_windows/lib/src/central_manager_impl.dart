@@ -10,6 +10,12 @@ import 'api.g.dart';
 import 'gatt_impl.dart';
 import 'peripheral_impl.dart';
 
+/// ログの段付け(呼び出し側のログレベル設定が意味を持つように):
+///   severe … 失敗のみ
+///   info   … ライフサイクル(スキャン開始/停止・接続/切断・ペアリング・
+///            MTU)。頻度は操作回数に比例し、洪水しない
+///   fine   … GATT 操作単位(read/write/subscribe。値のダンプは載せない)
+///   finer  … イベント毎すべて(広告 1 件・通知 1 件・値ダンプ・診断)
 Logger get _logger => Logger('CentralManager');
 
 final class DiscoveryArgs {
@@ -182,7 +188,7 @@ final class CentralManagerImpl
     final addressArgs = peripheral.address;
     final handleArgs = characteristic.handle;
     const modeArgs = CacheModeArgs.uncached;
-    _logger.info('readCharacteristic: $addressArgs.$handleArgs - $modeArgs');
+    _logger.fine('readCharacteristic: $addressArgs.$handleArgs - $modeArgs');
     final value = await _api.readCharacteristic(
       addressArgs,
       handleArgs,
@@ -206,8 +212,11 @@ final class CentralManagerImpl
     final handleArgs = characteristic.handle;
     final valueArgs = value;
     final typeArgs = type.toArgs();
-    _logger.info(
-      'writeCharacteristic: $addressArgs.$handleArgs - $valueArgs, $typeArgs',
+    // 値のダンプは載せない(fine は GATT 操作単位の記録。生値が要る調査は
+    // finer の通知ログ側で行う)。
+    _logger.fine(
+      'writeCharacteristic: $addressArgs.$handleArgs - '
+      '${valueArgs.length} bytes, $typeArgs',
     );
     await _api.writeCharacteristic(
       addressArgs,
@@ -234,7 +243,7 @@ final class CentralManagerImpl
               ? GATTCharacteristicNotifyStateArgs.notify
               : GATTCharacteristicNotifyStateArgs.indicate
         : GATTCharacteristicNotifyStateArgs.none;
-    _logger.info(
+    _logger.fine(
       'setCharacteristicNotifyState: $addressArgs.$handleArgs - $stateArgs',
     );
     await _api.setCharacteristicNotifyState(addressArgs, handleArgs, stateArgs);
@@ -251,7 +260,7 @@ final class CentralManagerImpl
     final addressArgs = peripheral.address;
     final handleArgs = descriptor.handle;
     const modeArgs = CacheModeArgs.uncached;
-    _logger.info('readDescriptor: $addressArgs.$handleArgs - $modeArgs');
+    _logger.fine('readDescriptor: $addressArgs.$handleArgs - $modeArgs');
     final value = await _api.readDescriptor(addressArgs, handleArgs, modeArgs);
     return value;
   }
@@ -268,7 +277,9 @@ final class CentralManagerImpl
     final addressArgs = peripheral.address;
     final handleArgs = descriptor.handle;
     final valueArgs = value;
-    _logger.info('writeDescriptor: $addressArgs.$handleArgs - $valueArgs');
+    _logger.fine(
+      'writeDescriptor: $addressArgs.$handleArgs - ${valueArgs.length} bytes',
+    );
     await _api.writeDescriptor(addressArgs, handleArgs, valueArgs);
   }
 
@@ -337,7 +348,8 @@ final class CentralManagerImpl
     AdvertisementArgs advertisementArgs,
   ) {
     final addressArgs = peripheralArgs.addressArgs;
-    _logger.info(
+    // 広告 1 件ごとに発火する(数件/秒)ため finer。
+    _logger.finer(
       'onDiscovered: $addressArgs - $rssiArgs, $timestampArgs, $typeArgs, $advertisementArgs',
     );
     if (typeArgs == AdvertisementTypeArgs.connectableDirected ||
@@ -436,7 +448,8 @@ final class CentralManagerImpl
   ) {
     final addressArgs = peripheralArgs.addressArgs;
     final handleArgs = characteristicArgs.handleArgs;
-    _logger.info(
+    // 通知 1 件ごとに発火する(ストリーミング中は数十件/秒)ため finer。
+    _logger.finer(
       'onCharacteristicNotified: $addressArgs.$handleArgs - $valueArgs',
     );
     final peripheral = peripheralArgs.toPeripheral();
@@ -570,7 +583,7 @@ final class CentralManagerImpl
     final oldAddressArgs = oldDiscoveryArgs.peripheralArgs.addressArgs;
     final newAddressArgs = newDiscoveryArgs.peripheralArgs.addressArgs;
     if (oldAddressArgs != newAddressArgs) {
-      _logger.fine(
+      _logger.finer(
         'ignored by different addressArgs $oldAddressArgs, $newAddressArgs',
       );
       return true;
@@ -579,14 +592,14 @@ final class CentralManagerImpl
         .toRadixString(16)
         .padLeft(12, '0');
     if (oldDiscoveryArgs.typeArgs == newDiscoveryArgs.typeArgs) {
-      _logger.fine(
+      _logger.finer(
         'ignored by same typeArgs $address: ${oldDiscoveryArgs.typeArgs}:${oldDiscoveryArgs.timestampArgs}, ${newDiscoveryArgs.typeArgs}:${newDiscoveryArgs.timestampArgs}',
       );
       return true;
     }
     if (oldDiscoveryArgs.typeArgs != AdvertisementTypeArgs.scanResponse &&
         newDiscoveryArgs.typeArgs != AdvertisementTypeArgs.scanResponse) {
-      _logger.fine(
+      _logger.finer(
         'ignored by wrong typeArgs $address:  ${oldDiscoveryArgs.typeArgs}:${oldDiscoveryArgs.timestampArgs}, ${newDiscoveryArgs.typeArgs}:${newDiscoveryArgs.timestampArgs}',
       );
       return true;
@@ -597,7 +610,7 @@ final class CentralManagerImpl
         : oldDiscoveryArgs.timestampArgs - newDiscoveryArgs.timestampArgs;
     final ignored = interval < 0 || interval > 1000;
     if (ignored) {
-      _logger.fine(
+      _logger.finer(
         'ignored by wrong timestampArgs $address: $interval, ${oldDiscoveryArgs.typeArgs}:${oldDiscoveryArgs.timestampArgs}, ${newDiscoveryArgs.typeArgs}:${newDiscoveryArgs.timestampArgs}',
       );
     }
