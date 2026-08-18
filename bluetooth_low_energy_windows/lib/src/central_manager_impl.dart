@@ -295,13 +295,21 @@ final class CentralManagerImpl
   ///
   /// 失敗は例外にせず [DevicePairingResultStatus] として返す。呼び出し側は
   /// キャンセル・タイムアウト・拒否を区別できる。
-  Future<DevicePairingResultStatus> pair(Peripheral peripheral) async {
+  ///
+  /// [protectionLevel] は要求する保護レベル。装置側のセキュリティ要求
+  /// (暗号化必須の GATT 等)に合わせて指定する。既定はライブラリとして
+  /// 中立な [DevicePairingProtectionLevel.defaultLevel](OS に選ばせる)。
+  Future<DevicePairingResultStatus> pair(
+    Peripheral peripheral, {
+    DevicePairingProtectionLevel protectionLevel =
+        DevicePairingProtectionLevel.defaultLevel,
+  }) async {
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }
     final addressArgs = peripheral.address;
-    _logger.info('pair: $addressArgs');
-    final statusArgs = await _api.pair(addressArgs);
+    _logger.info('pair: $addressArgs (protectionLevel: $protectionLevel)');
+    final statusArgs = await _api.pair(addressArgs, protectionLevel.toArgs());
     _logger.info('pair: $addressArgs -> $statusArgs');
     return statusArgs.toStatus();
   }

@@ -6,7 +6,8 @@ import 'src/peripheral_manager_impl.dart';
 // Windows 固有の追加 API(ペアリング)。共有インターフェースには足さず、
 // この実装パッケージの公開面にだけ出す。
 export 'src/central_manager_impl.dart' show CentralManagerImpl;
-export 'src/pairing.dart' show DevicePairingResultStatus;
+export 'src/pairing.dart'
+    show DevicePairingProtectionLevel, DevicePairingResultStatus;
 
 abstract class BluetoothLowEnergyWindowsPlugin {
   static void registerWith() {

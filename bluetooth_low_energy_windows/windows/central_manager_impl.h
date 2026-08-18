@@ -45,7 +45,7 @@ namespace bluetooth_low_energy_windows
 		void SetCharacteristicNotifyState(int64_t address_args, int64_t handle_args, const GATTCharacteristicNotifyStateArgs &state_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		void ReadDescriptor(int64_t address_args, int64_t handle_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<std::vector<uint8_t>> reply)> result) override;
 		void WriteDescriptor(int64_t address_args, int64_t handle_args, const std::vector<uint8_t> &value_args, std::function<void(std::optional<FlutterError> reply)> result) override;
-		void Pair(int64_t address_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result) override;
+		void Pair(int64_t address_args, const DevicePairingProtectionLevelArgs &protection_level_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result) override;
 		void Unpair(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		void IsPaired(int64_t address_args, std::function<void(ErrorOr<bool> reply)> result) override;
 
@@ -88,7 +88,7 @@ namespace bluetooth_low_energy_windows
 		winrt::fire_and_forget SetCharacteristicNotifyStateAsync(int64_t address_args, int64_t handle_args, const GATTCharacteristicNotifyStateArgs &state_args, std::function<void(std::optional<FlutterError> reply)> result);
 		winrt::fire_and_forget ReadDescriptorAsync(int64_t address_args, int64_t handle_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<std::vector<uint8_t>> reply)> result);
 		winrt::fire_and_forget WriteDescriptorAsync(int64_t address_args, int64_t handle_args, const std::vector<uint8_t> &value_args, std::function<void(std::optional<FlutterError> reply)> result);
-		winrt::fire_and_forget PairAsync(int64_t address_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result);
+		winrt::fire_and_forget PairAsync(int64_t address_args, DevicePairingProtectionLevelArgs protection_level_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result);
 		winrt::fire_and_forget UnpairAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result);
 		winrt::fire_and_forget IsPairedAsync(int64_t address_args, std::function<void(ErrorOr<bool> reply)> result);
 		// ── WinRT イベント → Flutter の中継(プラットフォームスレッドへ

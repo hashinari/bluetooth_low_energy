@@ -61,6 +61,18 @@ enum ConnectionStateArgs {
   connected,
 }
 
+/// Windows の `DevicePairingProtectionLevel` をそのまま写したもの。
+///
+/// pair で要求する保護レベル。装置側のセキュリティ要求(暗号化必須の
+/// GATT 等)に合わせてセントラル側からも同じ水準を要求するための口。
+/// `defaultLevel` は OS に適切なレベルを選ばせる。
+enum DevicePairingProtectionLevelArgs {
+  defaultLevel,
+  none,
+  encryption,
+  encryptionAndAuthentication,
+}
+
 /// Windows の `DevicePairingResultStatus` をそのまま写したもの。
 ///
 /// 文字列へ潰さず列挙で返すことで、呼び出し側が
@@ -804,62 +816,65 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is ConnectionStateArgs) {
       buffer.putUint8(131);
       writeValue(buffer, value.index);
-    }    else if (value is DevicePairingResultStatusArgs) {
+    }    else if (value is DevicePairingProtectionLevelArgs) {
       buffer.putUint8(132);
       writeValue(buffer, value.index);
-    }    else if (value is GATTCharacteristicPropertyArgs) {
+    }    else if (value is DevicePairingResultStatusArgs) {
       buffer.putUint8(133);
       writeValue(buffer, value.index);
-    }    else if (value is GATTCharacteristicWriteTypeArgs) {
+    }    else if (value is GATTCharacteristicPropertyArgs) {
       buffer.putUint8(134);
       writeValue(buffer, value.index);
-    }    else if (value is GATTCharacteristicNotifyStateArgs) {
+    }    else if (value is GATTCharacteristicWriteTypeArgs) {
       buffer.putUint8(135);
       writeValue(buffer, value.index);
-    }    else if (value is GATTProtectionLevelArgs) {
+    }    else if (value is GATTCharacteristicNotifyStateArgs) {
       buffer.putUint8(136);
       writeValue(buffer, value.index);
-    }    else if (value is GATTProtocolErrorArgs) {
+    }    else if (value is GATTProtectionLevelArgs) {
       buffer.putUint8(137);
       writeValue(buffer, value.index);
-    }    else if (value is CacheModeArgs) {
+    }    else if (value is GATTProtocolErrorArgs) {
       buffer.putUint8(138);
       writeValue(buffer, value.index);
-    }    else if (value is ManufacturerSpecificDataArgs) {
+    }    else if (value is CacheModeArgs) {
       buffer.putUint8(139);
-      writeValue(buffer, value.encode());
-    }    else if (value is AdvertisementArgs) {
+      writeValue(buffer, value.index);
+    }    else if (value is ManufacturerSpecificDataArgs) {
       buffer.putUint8(140);
       writeValue(buffer, value.encode());
-    }    else if (value is CentralArgs) {
+    }    else if (value is AdvertisementArgs) {
       buffer.putUint8(141);
       writeValue(buffer, value.encode());
-    }    else if (value is PeripheralArgs) {
+    }    else if (value is CentralArgs) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTDescriptorArgs) {
+    }    else if (value is PeripheralArgs) {
       buffer.putUint8(143);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTCharacteristicArgs) {
+    }    else if (value is GATTDescriptorArgs) {
       buffer.putUint8(144);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTServiceArgs) {
+    }    else if (value is GATTCharacteristicArgs) {
       buffer.putUint8(145);
       writeValue(buffer, value.encode());
-    }    else if (value is MutableGATTDescriptorArgs) {
+    }    else if (value is GATTServiceArgs) {
       buffer.putUint8(146);
       writeValue(buffer, value.encode());
-    }    else if (value is MutableGATTCharacteristicArgs) {
+    }    else if (value is MutableGATTDescriptorArgs) {
       buffer.putUint8(147);
       writeValue(buffer, value.encode());
-    }    else if (value is MutableGATTServiceArgs) {
+    }    else if (value is MutableGATTCharacteristicArgs) {
       buffer.putUint8(148);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTReadRequestArgs) {
+    }    else if (value is MutableGATTServiceArgs) {
       buffer.putUint8(149);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTWriteRequestArgs) {
+    }    else if (value is GATTReadRequestArgs) {
       buffer.putUint8(150);
+      writeValue(buffer, value.encode());
+    }    else if (value is GATTWriteRequestArgs) {
+      buffer.putUint8(151);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -880,48 +895,51 @@ class _PigeonCodec extends StandardMessageCodec {
         return value == null ? null : ConnectionStateArgs.values[value];
       case 132: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : DevicePairingResultStatusArgs.values[value];
+        return value == null ? null : DevicePairingProtectionLevelArgs.values[value];
       case 133: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : GATTCharacteristicPropertyArgs.values[value];
+        return value == null ? null : DevicePairingResultStatusArgs.values[value];
       case 134: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : GATTCharacteristicWriteTypeArgs.values[value];
+        return value == null ? null : GATTCharacteristicPropertyArgs.values[value];
       case 135: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : GATTCharacteristicNotifyStateArgs.values[value];
+        return value == null ? null : GATTCharacteristicWriteTypeArgs.values[value];
       case 136: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : GATTProtectionLevelArgs.values[value];
+        return value == null ? null : GATTCharacteristicNotifyStateArgs.values[value];
       case 137: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : GATTProtocolErrorArgs.values[value];
+        return value == null ? null : GATTProtectionLevelArgs.values[value];
       case 138: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : CacheModeArgs.values[value];
+        return value == null ? null : GATTProtocolErrorArgs.values[value];
       case 139: 
-        return ManufacturerSpecificDataArgs.decode(readValue(buffer)!);
+        final int? value = readValue(buffer) as int?;
+        return value == null ? null : CacheModeArgs.values[value];
       case 140: 
-        return AdvertisementArgs.decode(readValue(buffer)!);
+        return ManufacturerSpecificDataArgs.decode(readValue(buffer)!);
       case 141: 
-        return CentralArgs.decode(readValue(buffer)!);
+        return AdvertisementArgs.decode(readValue(buffer)!);
       case 142: 
-        return PeripheralArgs.decode(readValue(buffer)!);
+        return CentralArgs.decode(readValue(buffer)!);
       case 143: 
-        return GATTDescriptorArgs.decode(readValue(buffer)!);
+        return PeripheralArgs.decode(readValue(buffer)!);
       case 144: 
-        return GATTCharacteristicArgs.decode(readValue(buffer)!);
+        return GATTDescriptorArgs.decode(readValue(buffer)!);
       case 145: 
-        return GATTServiceArgs.decode(readValue(buffer)!);
+        return GATTCharacteristicArgs.decode(readValue(buffer)!);
       case 146: 
-        return MutableGATTDescriptorArgs.decode(readValue(buffer)!);
+        return GATTServiceArgs.decode(readValue(buffer)!);
       case 147: 
-        return MutableGATTCharacteristicArgs.decode(readValue(buffer)!);
+        return MutableGATTDescriptorArgs.decode(readValue(buffer)!);
       case 148: 
-        return MutableGATTServiceArgs.decode(readValue(buffer)!);
+        return MutableGATTCharacteristicArgs.decode(readValue(buffer)!);
       case 149: 
-        return GATTReadRequestArgs.decode(readValue(buffer)!);
+        return MutableGATTServiceArgs.decode(readValue(buffer)!);
       case 150: 
+        return GATTReadRequestArgs.decode(readValue(buffer)!);
+      case 151: 
         return GATTWriteRequestArgs.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -1364,14 +1382,18 @@ class CentralManagerHostApi {
   ///
   /// 失敗を例外にせず結果として返すので、キャンセル・タイムアウト・拒否を
   /// 呼び出し側で区別できる。
-  Future<DevicePairingResultStatusArgs> pair(int addressArgs) async {
+  ///
+  /// [protectionLevelArgs] は要求する保護レベル。装置側のセキュリティ要求に
+  /// 合わせて指定する(未ペアリング機器の `Pairing().ProtectionLevel()` は
+  /// 「現在の水準 = None」を返すだけで要求水準ではないため、ここで明示する)。
+  Future<DevicePairingResultStatusArgs> pair(int addressArgs, DevicePairingProtectionLevelArgs protectionLevelArgs) async {
     final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.pair$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[addressArgs]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[addressArgs, protectionLevelArgs]);
     final List<Object?>? pigeonVar_replyList =
         await pigeonVar_sendFuture as List<Object?>?;
     if (pigeonVar_replyList == null) {

@@ -25,6 +25,18 @@ enum AdvertisementTypeArgs {
 
 enum ConnectionStateArgs { disconnected, connected }
 
+/// Windows の `DevicePairingProtectionLevel` をそのまま写したもの。
+///
+/// pair で要求する保護レベル。装置側のセキュリティ要求(暗号化必須の
+/// GATT 等)に合わせてセントラル側からも同じ水準を要求するための口。
+/// `defaultLevel` は OS に適切なレベルを選ばせる。
+enum DevicePairingProtectionLevelArgs {
+  defaultLevel,
+  none,
+  encryption,
+  encryptionAndAuthentication,
+}
+
 /// Windows の `DevicePairingResultStatus` をそのまま写したもの。
 ///
 /// 文字列へ潰さず列挙で返すことで、呼び出し側が
@@ -311,8 +323,15 @@ abstract class CentralManagerHostApi {
   ///
   /// 失敗を例外にせず結果として返すので、キャンセル・タイムアウト・拒否を
   /// 呼び出し側で区別できる。
+  ///
+  /// [protectionLevelArgs] は要求する保護レベル。装置側のセキュリティ要求に
+  /// 合わせて指定する(未ペアリング機器の `Pairing().ProtectionLevel()` は
+  /// 「現在の水準 = None」を返すだけで要求水準ではないため、ここで明示する)。
   @async
-  DevicePairingResultStatusArgs pair(int addressArgs);
+  DevicePairingResultStatusArgs pair(
+    int addressArgs,
+    DevicePairingProtectionLevelArgs protectionLevelArgs,
+  );
 
   /// OS が保持しているペアリング(関連付け)を解除する。接続は不要。
   @async

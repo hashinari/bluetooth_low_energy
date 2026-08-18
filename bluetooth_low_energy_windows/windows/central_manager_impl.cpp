@@ -1003,9 +1003,9 @@ namespace bluetooth_low_energy_windows
 	// ボンディングしない装置では鍵が保存されないため、接続ごとにここを
 	// 通してから初期読み出しへ進む必要がある。
 
-	void CentralManagerImpl::Pair(int64_t address_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
+	void CentralManagerImpl::Pair(int64_t address_args, const DevicePairingProtectionLevelArgs &protection_level_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
 	{
-		PairAsync(address_args, std::move(result));
+		PairAsync(address_args, protection_level_args, std::move(result));
 	}
 
 	void CentralManagerImpl::Unpair(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
@@ -1058,7 +1058,25 @@ namespace bluetooth_low_energy_windows
 		}
 	}
 
-	winrt::fire_and_forget CentralManagerImpl::PairAsync(int64_t address_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
+	// pigeon の enum → WinRT の保護レベル。
+	static winrt::Windows::Devices::Enumeration::DevicePairingProtectionLevel ProtectionLevelFromArgs(const DevicePairingProtectionLevelArgs &args)
+	{
+		using winrt::Windows::Devices::Enumeration::DevicePairingProtectionLevel;
+		switch (args)
+		{
+		case DevicePairingProtectionLevelArgs::kNone:
+			return DevicePairingProtectionLevel::None;
+		case DevicePairingProtectionLevelArgs::kEncryption:
+			return DevicePairingProtectionLevel::Encryption;
+		case DevicePairingProtectionLevelArgs::kEncryptionAndAuthentication:
+			return DevicePairingProtectionLevel::EncryptionAndAuthentication;
+		case DevicePairingProtectionLevelArgs::kDefaultLevel:
+		default:
+			return DevicePairingProtectionLevel::Default;
+		}
+	}
+
+	winrt::fire_and_forget CentralManagerImpl::PairAsync(int64_t address_args, DevicePairingProtectionLevelArgs protection_level_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
 	{
 		try
 		{
@@ -1092,14 +1110,16 @@ namespace bluetooth_low_energy_windows
 			// 失敗する仕様で、デスクトップの同意はこれと別にシステム
 			// ダイアログが担う(アプリからは抑止できない)。
 			const auto token = custom.PairingRequested({this, &CentralManagerImpl::OnPairingRequested});
-			// 調査用: 渡す保護レベルと、儀式(PairingRequested)の発火有無・
-			// 実際に使われた保護レベルを観測する。requested=None のまま
-			// paired になり ceremony が未発火なら「SMP を伴わない関連付け
-			// だけの登録」が起きている。
-			const auto protection_level = pairing.ProtectionLevel();
+			// 保護レベルは呼び出し側が装置のセキュリティ要求に合わせて指定
+			// する。かつては `pairing.ProtectionLevel()` を渡していたが、
+			// これは未ペアリング機器では「現在の水準 = None」を返すだけで
+			// 要求水準ではなく、OS の解釈が走行ごとに揺れる(Encryption に
+			// 昇格することも None のまま登録することもある)ことが診断ログで
+			// 確認されたため、明示指定に改めた。
+			const auto protection_level = ProtectionLevelFromArgs(protection_level_args);
+			// 調査用: 渡した保護レベル・実際に使われた保護レベル・儀式
+			// (PairingRequested)の発火有無を完了時に診断ログへ出す。
 			m_pairing_requested_kind.store(-1);
-			// 保護レベルは装置が要求するものに合わせる。こちらから
-			// Encryption などを指定すると、満たせない相手で失敗する。
 			const auto &pair_result = co_await custom.PairAsync(
 				winrt::Windows::Devices::Enumeration::DevicePairingKinds::ConfirmOnly |
 					winrt::Windows::Devices::Enumeration::DevicePairingKinds::ProvidePin,

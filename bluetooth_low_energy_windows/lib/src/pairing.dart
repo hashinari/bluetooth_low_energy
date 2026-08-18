@@ -1,5 +1,42 @@
 import 'api.g.dart';
 
+/// pair で要求する保護レベル。Windows の `DevicePairingProtectionLevel` に
+/// 対応する。
+///
+/// 装置側のセキュリティ要求(暗号化必須の GATT 等)に合わせて、セントラル
+/// 側からも同じ水準を要求するための口。[defaultLevel] は OS に適切な
+/// レベルを選ばせる。
+enum DevicePairingProtectionLevel {
+  /// OS 既定(OS が適切なレベルを選ぶ)。
+  defaultLevel,
+
+  /// 保護なし。
+  none,
+
+  /// 暗号化。
+  encryption,
+
+  /// 暗号化 + 認証。
+  encryptionAndAuthentication,
+}
+
+/// 公開する列挙 → 生成された引数型。
+extension DevicePairingProtectionLevelX on DevicePairingProtectionLevel {
+  /// [DevicePairingProtectionLevelArgs] へ写す。
+  DevicePairingProtectionLevelArgs toArgs() {
+    switch (this) {
+      case DevicePairingProtectionLevel.defaultLevel:
+        return DevicePairingProtectionLevelArgs.defaultLevel;
+      case DevicePairingProtectionLevel.none:
+        return DevicePairingProtectionLevelArgs.none;
+      case DevicePairingProtectionLevel.encryption:
+        return DevicePairingProtectionLevelArgs.encryption;
+      case DevicePairingProtectionLevel.encryptionAndAuthentication:
+        return DevicePairingProtectionLevelArgs.encryptionAndAuthentication;
+    }
+  }
+}
+
 /// ペアリングの結果。Windows の `DevicePairingResultStatus` に対応する。
 ///
 /// 文字列へ潰さず列挙で返すことで、呼び出し側が「利用者がキャンセルした」

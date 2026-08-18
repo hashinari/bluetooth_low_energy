@@ -81,6 +81,18 @@ enum class ConnectionStateArgs {
   kConnected = 1
 };
 
+// Windows の `DevicePairingProtectionLevel` をそのまま写したもの。
+//
+// pair で要求する保護レベル。装置側のセキュリティ要求(暗号化必須の
+// GATT 等)に合わせてセントラル側からも同じ水準を要求するための口。
+// `defaultLevel` は OS に適切なレベルを選ばせる。
+enum class DevicePairingProtectionLevelArgs {
+  kDefaultLevel = 0,
+  kNone = 1,
+  kEncryption = 2,
+  kEncryptionAndAuthentication = 3
+};
+
 // Windows の `DevicePairingResultStatus` をそのまま写したもの。
 //
 // 文字列へ潰さず列挙で返すことで、呼び出し側が
@@ -694,8 +706,13 @@ class CentralManagerHostApi {
   //
   // 失敗を例外にせず結果として返すので、キャンセル・タイムアウト・拒否を
   // 呼び出し側で区別できる。
+  //
+  // [protectionLevelArgs] は要求する保護レベル。装置側のセキュリティ要求に
+  // 合わせて指定する(未ペアリング機器の `Pairing().ProtectionLevel()` は
+  // 「現在の水準 = None」を返すだけで要求水準ではないため、ここで明示する)。
   virtual void Pair(
     int64_t address_args,
+    const DevicePairingProtectionLevelArgs& protection_level_args,
     std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result) = 0;
   // OS が保持しているペアリング(関連付け)を解除する。接続は不要。
   virtual void Unpair(
