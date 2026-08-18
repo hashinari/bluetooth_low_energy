@@ -760,6 +760,14 @@ class CentralManagerFlutterApi {
     const std::vector<uint8_t>& value_args,
     std::function<void(void)>&& on_success,
     std::function<void(const FlutterError&)>&& on_error);
+  // ネイティブ層の診断メッセージ。Dart 側の logger(info)へ中継する。
+  //
+  // ネイティブには独自のログ機構が無いため、調査時の観測値
+  // (例: ペアリングの保護レベル・儀式の発火有無)はこの口で表出する。
+  void OnLogged(
+    const std::string& message_args,
+    std::function<void(void)>&& on_success,
+    std::function<void(const FlutterError&)>&& on_error);
  private:
   flutter::BinaryMessenger* binary_messenger_;
   std::string message_channel_suffix_;

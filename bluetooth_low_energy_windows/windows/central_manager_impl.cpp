@@ -1047,8 +1047,12 @@ namespace bluetooth_low_energy_windows
 	// これを登録して Accept() すると Windows の同意ダイアログは出ない。
 	void CentralManagerImpl::OnPairingRequested(const winrt::Windows::Devices::Enumeration::DeviceInformationCustomPairing &sender, const winrt::Windows::Devices::Enumeration::DevicePairingRequestedEventArgs &args)
 	{
+		const auto kind = args.PairingKind();
+		// 調査用: 儀式が実際に発火したことを記録する(PairAsync が完了後に
+		// まとめて診断ログへ出す)。
+		m_pairing_requested_kind.store(static_cast<int32_t>(kind));
 		// PIN の入力・表示が要るセレモニーは代行できない。OS/利用者に委ねる。
-		if (args.PairingKind() == winrt::Windows::Devices::Enumeration::DevicePairingKinds::ConfirmOnly)
+		if (kind == winrt::Windows::Devices::Enumeration::DevicePairingKinds::ConfirmOnly)
 		{
 			args.Accept();
 		}
@@ -1088,14 +1092,41 @@ namespace bluetooth_low_energy_windows
 			// 失敗する仕様で、デスクトップの同意はこれと別にシステム
 			// ダイアログが担う(アプリからは抑止できない)。
 			const auto token = custom.PairingRequested({this, &CentralManagerImpl::OnPairingRequested});
+			// 調査用: 渡す保護レベルと、儀式(PairingRequested)の発火有無・
+			// 実際に使われた保護レベルを観測する。requested=None のまま
+			// paired になり ceremony が未発火なら「SMP を伴わない関連付け
+			// だけの登録」が起きている。
+			const auto protection_level = pairing.ProtectionLevel();
+			m_pairing_requested_kind.store(-1);
 			// 保護レベルは装置が要求するものに合わせる。こちらから
 			// Encryption などを指定すると、満たせない相手で失敗する。
 			const auto &pair_result = co_await custom.PairAsync(
 				winrt::Windows::Devices::Enumeration::DevicePairingKinds::ConfirmOnly |
 					winrt::Windows::Devices::Enumeration::DevicePairingKinds::ProvidePin,
-				pairing.ProtectionLevel());
+				protection_level);
 			custom.PairingRequested(token);
-			result(PairingStatusToArgs(pair_result.Status()));
+			// スレッド切替(co_await)前に結果値をすべて値で確定させる。
+			const auto pair_status = PairingStatusToArgs(pair_result.Status());
+			const auto used_level = pair_result.ProtectionLevelUsed();
+			const auto ceremony_kind = m_pairing_requested_kind.load();
+			// FlutterApi の呼び出しはプラットフォームスレッドからのみ可能な
+			// ため、診断ログの送出前に一度戻す(ConnectAsync と同じ手順)。
+			const auto ui_thread = m_ui_thread;
+			co_await ui_thread;
+			if (m_api.has_value())
+			{
+				const auto message =
+					"pair diagnostics: requestedProtectionLevel=" +
+					std::to_string(static_cast<int32_t>(protection_level)) +
+					" usedProtectionLevel=" +
+					std::to_string(static_cast<int32_t>(used_level)) +
+					" ceremonyKind=" + std::to_string(ceremony_kind) +
+					" (protectionLevel: 0=Default 1=None 2=Encryption "
+					"3=EncryptionAndAuthentication / ceremonyKind: -1=未発火 "
+					"1=ConfirmOnly 2=DisplayPin 4=ProvidePin 8=ConfirmPinMatch)";
+				m_api.value().OnLogged(message, [] {}, [](auto error) {});
+			}
+			result(pair_status);
 		}
 		catch (const winrt::hresult_error &ex)
 		{

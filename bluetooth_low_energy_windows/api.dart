@@ -346,6 +346,12 @@ abstract class CentralManagerFlutterApi {
     GATTCharacteristicArgs characteristicArgs,
     Uint8List valueArgs,
   );
+
+  /// ネイティブ層の診断メッセージ。Dart 側の logger(info)へ中継する。
+  ///
+  /// ネイティブには独自のログ機構が無いため、調査時の観測値
+  /// (例: ペアリングの保護レベル・儀式の発火有無)はこの口で表出する。
+  void onLogged(String messageArgs);
 }
 
 @HostApi()

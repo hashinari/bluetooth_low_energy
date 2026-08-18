@@ -1462,6 +1462,12 @@ abstract class CentralManagerFlutterApi {
 
   void onCharacteristicNotified(PeripheralArgs peripheralArgs, GATTCharacteristicArgs characteristicArgs, Uint8List valueArgs);
 
+  /// ネイティブ層の診断メッセージ。Dart 側の logger(info)へ中継する。
+  ///
+  /// ネイティブには独自のログ機構が無いため、調査時の観測値
+  /// (例: ペアリングの保護レベル・儀式の発火有無)はこの口で表出する。
+  void onLogged(String messageArgs);
+
   static void setUp(CentralManagerFlutterApi? api, {BinaryMessenger? binaryMessenger, String messageChannelSuffix = '',}) {
     messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
     {
@@ -1604,6 +1610,31 @@ abstract class CentralManagerFlutterApi {
               'Argument for dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerFlutterApi.onCharacteristicNotified was null, expected non-null Uint8List.');
           try {
             api.onCharacteristicNotified(arg_peripheralArgs!, arg_characteristicArgs!, arg_valueArgs!);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+    {
+      final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerFlutterApi.onLogged$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerFlutterApi.onLogged was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final String? arg_messageArgs = (args[0] as String?);
+          assert(arg_messageArgs != null,
+              'Argument for dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerFlutterApi.onLogged was null, expected non-null String.');
+          try {
+            api.onLogged(arg_messageArgs!);
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);

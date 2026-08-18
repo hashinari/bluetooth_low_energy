@@ -463,6 +463,13 @@ final class CentralManagerImpl
     _characteristicNotifiedController.add(eventArgs);
   }
 
+  @override
+  void onLogged(String messageArgs) {
+    // ネイティブ層の診断メッセージの中継(ネイティブに独自のログ機構が
+    // 無いため)。調査用の観測値なので info。
+    _logger.info(messageArgs);
+  }
+
   Future<void> _initialize() async {
     // Here we use `Future()` to make it possible to change the `logLevel` before `initialize()`.
     await Future(() async {
