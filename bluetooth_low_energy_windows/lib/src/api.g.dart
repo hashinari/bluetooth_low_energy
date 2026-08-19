@@ -295,62 +295,6 @@ class CentralArgs {
 ;
 }
 
-/// OS が関連付け(ペアリング)を保持している装置。
-///
-/// 広告(スキャン)ではなく、OS の関連付けの一覧から得られる。
-class PairedPeripheralArgs {
-  PairedPeripheralArgs({
-    required this.addressArgs,
-    this.nameArgs,
-    required this.idArgs,
-  });
-
-  int addressArgs;
-
-  String? nameArgs;
-
-  /// `DeviceInformation.Id`(関連付けの識別子)。アドレスと違い、
-  /// OS がこの装置を指すために使う正式な ID。
-  String idArgs;
-
-  List<Object?> _toList() {
-    return <Object?>[
-      addressArgs,
-      nameArgs,
-      idArgs,
-    ];
-  }
-
-  Object encode() {
-    return _toList();  }
-
-  static PairedPeripheralArgs decode(Object result) {
-    result as List<Object?>;
-    return PairedPeripheralArgs(
-      addressArgs: result[0]! as int,
-      nameArgs: result[1] as String?,
-      idArgs: result[2]! as String,
-    );
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  bool operator ==(Object other) {
-    if (other is! PairedPeripheralArgs || other.runtimeType != runtimeType) {
-      return false;
-    }
-    if (identical(this, other)) {
-      return true;
-    }
-    return _deepEquals(encode(), other.encode());
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  int get hashCode => Object.hashAll(_toList())
-;
-}
-
 class PeripheralArgs {
   PeripheralArgs({
     required this.addressArgs,
@@ -905,35 +849,32 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is CentralArgs) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
-    }    else if (value is PairedPeripheralArgs) {
+    }    else if (value is PeripheralArgs) {
       buffer.putUint8(143);
       writeValue(buffer, value.encode());
-    }    else if (value is PeripheralArgs) {
+    }    else if (value is GATTDescriptorArgs) {
       buffer.putUint8(144);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTDescriptorArgs) {
+    }    else if (value is GATTCharacteristicArgs) {
       buffer.putUint8(145);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTCharacteristicArgs) {
+    }    else if (value is GATTServiceArgs) {
       buffer.putUint8(146);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTServiceArgs) {
+    }    else if (value is MutableGATTDescriptorArgs) {
       buffer.putUint8(147);
       writeValue(buffer, value.encode());
-    }    else if (value is MutableGATTDescriptorArgs) {
+    }    else if (value is MutableGATTCharacteristicArgs) {
       buffer.putUint8(148);
       writeValue(buffer, value.encode());
-    }    else if (value is MutableGATTCharacteristicArgs) {
+    }    else if (value is MutableGATTServiceArgs) {
       buffer.putUint8(149);
       writeValue(buffer, value.encode());
-    }    else if (value is MutableGATTServiceArgs) {
+    }    else if (value is GATTReadRequestArgs) {
       buffer.putUint8(150);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTReadRequestArgs) {
-      buffer.putUint8(151);
-      writeValue(buffer, value.encode());
     }    else if (value is GATTWriteRequestArgs) {
-      buffer.putUint8(152);
+      buffer.putUint8(151);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -983,24 +924,22 @@ class _PigeonCodec extends StandardMessageCodec {
       case 142: 
         return CentralArgs.decode(readValue(buffer)!);
       case 143: 
-        return PairedPeripheralArgs.decode(readValue(buffer)!);
-      case 144: 
         return PeripheralArgs.decode(readValue(buffer)!);
-      case 145: 
+      case 144: 
         return GATTDescriptorArgs.decode(readValue(buffer)!);
-      case 146: 
+      case 145: 
         return GATTCharacteristicArgs.decode(readValue(buffer)!);
-      case 147: 
+      case 146: 
         return GATTServiceArgs.decode(readValue(buffer)!);
-      case 148: 
+      case 147: 
         return MutableGATTDescriptorArgs.decode(readValue(buffer)!);
-      case 149: 
+      case 148: 
         return MutableGATTCharacteristicArgs.decode(readValue(buffer)!);
-      case 150: 
+      case 149: 
         return MutableGATTServiceArgs.decode(readValue(buffer)!);
-      case 151: 
+      case 150: 
         return GATTReadRequestArgs.decode(readValue(buffer)!);
-      case 152: 
+      case 151: 
         return GATTWriteRequestArgs.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -1561,81 +1500,22 @@ class CentralManagerHostApi {
     }
   }
 
-  /// OS が関連付け(ペアリング)を保持している装置を列挙する。
+  /// `GattSession.MaintainConnection` を立てて接続を開始する。
   ///
-  /// `BluetoothLEDevice.GetDeviceSelectorFromPairingState(true)` の AQS を
-  /// `DeviceInformation.FindAllAsync` に渡して得る。広告を待つ必要はなく、
-  /// 装置が圏外でも一覧には出る(接続できるかは別)。
-  Future<List<PairedPeripheralArgs>> getPairedPeripherals() async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.getPairedPeripherals$pigeonVar_messageChannelSuffix';
-    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
-    final List<Object?>? pigeonVar_replyList =
-        await pigeonVar_sendFuture as List<Object?>?;
-    if (pigeonVar_replyList == null) {
-      throw _createConnectionError(pigeonVar_channelName);
-    } else if (pigeonVar_replyList.length > 1) {
-      throw PlatformException(
-        code: pigeonVar_replyList[0]! as String,
-        message: pigeonVar_replyList[1] as String?,
-        details: pigeonVar_replyList[2],
-      );
-    } else if (pigeonVar_replyList[0] == null) {
-      throw PlatformException(
-        code: 'null-error',
-        message: 'Host platform returned null value for non-null return value.',
-      );
-    } else {
-      return (pigeonVar_replyList[0] as List<Object?>?)!.cast<PairedPeripheralArgs>();
-    }
-  }
-
-  /// 関連付け済みの装置へ、その関連付け経由で接続する。
+  /// connect の接続待ちは OS 内部で 7 秒固定・キャンセル不可である。
+  /// こちらは「デバイスが現れ次第つなぐ」を OS へ依頼し、リンク確立を
+  /// 待たずに返る。確立は onConnectionStateChanged(connected)で通知する
+  /// ので、待ち時間の上限と中断は呼び出し側が決める。中断は disconnect。
   ///
-  /// connect はアドレスから装置オブジェクトを作る(`FromBluetoothAddressAsync`)
-  /// のに対し、こちらは OS が保持している関連付け(AssociationEndpoint)を
-  /// 引いて `FromIdAsync` で作る。ペアリング済み装置に対して OS が正式に
-  /// 用意している経路はこちら。
+  /// 依頼はセッションが生きている限り有効であり、接続中に維持を解除しては
+  /// ならない。Windows でリンクを保持するのは維持依頼か実行中の GATT 操作の
+  /// どちらかで、確立直後はまだ後者を持たないため、そこで解除すると OS が
+  /// リンクを解体する。解除は disconnect が行う。
   ///
-  /// 関連付けが無い装置ではエラーになる(先に pair が要る)。
-  Future<void> connectPaired(int addressArgs) async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.connectPaired$pigeonVar_messageChannelSuffix';
-    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[addressArgs]);
-    final List<Object?>? pigeonVar_replyList =
-        await pigeonVar_sendFuture as List<Object?>?;
-    if (pigeonVar_replyList == null) {
-      throw _createConnectionError(pigeonVar_channelName);
-    } else if (pigeonVar_replyList.length > 1) {
-      throw PlatformException(
-        code: pigeonVar_replyList[0]! as String,
-        message: pigeonVar_replyList[1] as String?,
-        details: pigeonVar_replyList[2],
-      );
-    } else {
-      return;
-    }
-  }
-
-  /// `GattSession.MaintainConnection` 方式で接続を開始する。
-  ///
-  /// connect(GATT 操作起点)の接続待ちは OS 内部で 7 秒固定・キャンセル
-  /// 不可(公式文書)。こちらは MaintainConnection を true にして
-  /// 「デバイスが現れ次第 OS が接続する」を無期限で依頼し、**リンク確立を
-  /// 待たずに返る**。確立は onConnectionStateChanged(connected) で通知
-  /// されるため、待ち時間の上限と中断(disconnect = 参照解放で依頼ごと
-  /// 消える)は呼び出し側が管理する。
-  ///
-  /// true のままだとリンク断のたびに OS が自動で張り直すため、確立後は
-  /// setMaintainConnection(false) で戻すこと(再接続の主導権をアプリに残す)。
+  /// 維持が有効な間、リンクが失われても OS が張り直す。呼び出し側には
+  /// 切断と再接続として通知され、装置・セッション・GATT オブジェクトは
+  /// 保持されるのでハンドルはそのまま使える。ただし通知の購読(CCCD)は
+  /// 装置側が切断で落とすため、張り直しは呼び出し側の責務である。
   Future<void> connectMaintained(int addressArgs) async {
     final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.connectMaintained$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
@@ -1659,9 +1539,11 @@ class CentralManagerHostApi {
     }
   }
 
-  /// `GattSession.MaintainConnection` を設定する。
-  /// connectMaintained で確立した後に false へ戻す用途。
-  /// セッション未保持(未接続)の装置に対してはエラー。
+  /// `GattSession.MaintainConnection` を明示的に切り替える。
+  ///
+  /// 通常は connectMaintained と disconnect で足りる。接続中の解除は
+  /// リンクの解体を招くため、その用途では使わないこと。
+  /// セッションを保持していない(未接続の)装置に対してはエラーになる。
   Future<void> setMaintainConnection(int addressArgs, bool enableArgs) async {
     final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.setMaintainConnection$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(

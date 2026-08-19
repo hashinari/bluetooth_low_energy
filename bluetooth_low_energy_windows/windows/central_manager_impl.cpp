@@ -100,17 +100,7 @@ namespace bluetooth_low_energy_windows
 		ConnectAsync(address_args, std::move(result));
 	}
 
-	void CentralManagerImpl::GetPairedPeripherals(std::function<void(ErrorOr<flutter::EncodableList> reply)> result)
-	{
-		GetPairedPeripheralsAsync(std::move(result));
-	}
-
-	void CentralManagerImpl::ConnectPaired(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
-	{
-		ConnectPairedAsync(address_args, std::move(result));
-	}
-
-	void CentralManagerImpl::ConnectMaintained(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
+			void CentralManagerImpl::ConnectMaintained(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
 	{
 		ConnectMaintainedAsync(address_args, std::move(result));
 	}
@@ -408,168 +398,7 @@ namespace bluetooth_low_energy_windows
 		}
 	}
 
-	winrt::fire_and_forget CentralManagerImpl::GetPairedPeripheralsAsync(std::function<void(ErrorOr<flutter::EncodableList> reply)> result)
-	{
-		try
-		{
-			// 「ペアリング済みの BLE 装置」を指す AQS。広告ではなく OS が
-			// 保持している関連付け(AssociationEndpoint)の一覧を引く。
-			const auto ui_thread = m_ui_thread;
-			const auto selector = winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::GetDeviceSelectorFromPairingState(true);
-			const auto &infos = co_await winrt::Windows::Devices::Enumeration::DeviceInformation::FindAllAsync(selector);
-			auto items_args = flutter::EncodableList();
-			for (const auto &info : infos)
-			{
-				// FromIdAsync は同意を求めることがあり、公式に「UI スレッドから
-				// 呼ぶこと」とされている。呼び出しを UI スレッドで開始する。
-				co_await ui_thread;
-				const auto &device = co_await winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromIdAsync(info.Id());
-				if (device == nullptr)
-				{
-					continue;
-				}
-				const auto address_args = static_cast<int64_t>(device.BluetoothAddress());
-				const auto name_args = winrt::to_string(device.Name());
-				const auto id_args = winrt::to_string(info.Id());
-				const auto item_args = PairedPeripheralArgs(address_args, &name_args, id_args);
-				items_args.emplace_back(flutter::CustomEncodableValue(item_args));
-			}
-			co_await ui_thread;
-			result(items_args);
-		}
-		catch (const winrt::hresult_error &ex)
-		{
-			result(FlutterError("winrt::hresult_error", winrt::to_string(ex.message())));
-		}
-		catch (const std::exception &ex)
-		{
-			result(FlutterError("std::exception", ex.what()));
-		}
-	}
-
-	winrt::fire_and_forget CentralManagerImpl::ConnectPairedAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
-	{
-		try
-		{
-			// 関連付けの一覧からこのアドレスの装置を引き当て、`FromIdAsync`
-			// で装置オブジェクトを作る。connect の `FromBluetoothAddressAsync`
-			// はアドレスからその場で作るのに対し、こちらは OS が保持して
-			// いる関連付けを経由する(ペアリング済み装置への正規の経路)。
-			const auto address = static_cast<uint64_t>(address_args);
-			const auto ui_thread = m_ui_thread;
-			const auto selector = winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::GetDeviceSelectorFromPairingState(true);
-			const auto &infos = co_await winrt::Windows::Devices::Enumeration::DeviceInformation::FindAllAsync(selector);
-			winrt::Windows::Devices::Bluetooth::BluetoothLEDevice device{nullptr};
-			for (const auto &info : infos)
-			{
-				// FromIdAsync は同意を求めることがあり、公式に「UI スレッドから
-				// 呼ぶこと」とされている。呼び出しを UI スレッドで開始する。
-				co_await ui_thread;
-				const auto &candidate = co_await winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromIdAsync(info.Id());
-				if (candidate != nullptr && candidate.BluetoothAddress() == address)
-				{
-					device = candidate;
-					break;
-				}
-			}
-			if (device == nullptr)
-			{
-				co_await ui_thread;
-				result(FlutterError("NotPaired", "No paired association for this address (pair first)."));
-				co_return;
-			}
-			const auto id = device.BluetoothDeviceId();
-			const auto &session = co_await winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattSession::FromDeviceIdAsync(id);
-			// 調査用: OS 側が持っている情報だけで答えられるか(cached)と、
-			// この装置へのアクセス許可の状態を先に観測する。cached が成功
-			// して uncached が Unreachable になるなら、「装置と話せない」の
-			// ではなく「OS が無線を伴う要求を通していない」ことになる。
-			const auto &cached = co_await device.GetGattServicesAsync(winrt::Windows::Devices::Bluetooth::BluetoothCacheMode::Cached);
-			const auto cached_status = cached.Status();
-			const auto cached_count = cached_status == winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success
-										  ? cached.Services().Size()
-										  : 0;
-			const auto access_status = device.DeviceAccessInformation().CurrentStatus();
-			const auto connection_status = device.ConnectionStatus();
-			co_await ui_thread;
-			if (m_api.has_value())
-			{
-				const auto message =
-					"connectPaired diagnostics: cachedStatus=" +
-					std::to_string(static_cast<int32_t>(cached_status)) +
-					" cachedServices=" + std::to_string(cached_count) +
-					" deviceAccess=" + std::to_string(static_cast<int32_t>(access_status)) +
-					" connectionStatus=" + std::to_string(static_cast<int32_t>(connection_status)) +
-					" (cachedStatus: 0=Success 1=Unreachable 2=ProtocolError 3=AccessDenied "
-					"/ deviceAccess: 0=Unspecified 1=Allowed 2=DeniedByUser 3=DeniedBySystem "
-					"/ connectionStatus: 0=Disconnected 1=Connected)";
-				m_api.value().OnLogged(message, [] {}, [](auto error) {});
-			}
-			// 確立に uncached の探索は使わない。関連付け済み装置への uncached
-			// の再探索は、リンク確立・暗号化・ATT MTU 交換まで進んだ直後に
-			// Windows 側が切断し Unreachable を返す(実測)。OS はこの装置の
-			// GATT を既に保持しており(上の cachedServices)、再探索は不要。
-			// 公式が挙げる接続開始手段のうち MaintainConnection を使う。
-			//
-			// リンク確立を待たずに返る。確立は onConnectionStateChanged
-			// (connected)で通知されるので、待ち時間の上限と中断は呼び出し側
-			// が決める。
-			if (!session.CanMaintainConnection())
-			{
-				result(FlutterError("CannotMaintainConnection", "GattSession.CanMaintainConnection is false."));
-				co_return;
-			}
-			const auto peripheral_args = PeripheralArgs(address_args);
-			// 依頼を出す前にハンドラを登録し、確立イベントを取り逃さない。
-			m_device_connection_status_changed_revokers[address_args] = device.ConnectionStatusChanged(
-				winrt::auto_revoke,
-				[this, address_args](winrt::Windows::Devices::Bluetooth::BluetoothLEDevice device, auto obj)
-				{
-					const auto status = device.ConnectionStatus();
-					HandleConnectionStatusChanged(address_args, status);
-				});
-			m_session_max_pdu_size_changed_revokers[address_args] = session.MaxPduSizeChanged(
-				winrt::auto_revoke,
-				[this, peripheral_args](winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattSession session, auto obj)
-				{
-					const auto mtu = session.MaxPduSize();
-					const auto mtu_args = static_cast<int64_t>(mtu);
-					NotifyMTUChanged(peripheral_args, mtu_args);
-				});
-			m_devices[address_args] = device;
-			m_sessions[address_args] = session;
-			session.MaintainConnection(true);
-			auto &api = m_api.value();
-			// 調査用: 設定が実際に保持されているかを読み戻す。false のままなら
-			// OS がこの依頼を受け付けていないことになる。
-			{
-				const auto message =
-					std::string("connectPaired: MaintainConnection set -> ") +
-					(session.MaintainConnection() ? "true" : "false") +
-					" sessionStatus=" + std::to_string(static_cast<int32_t>(session.SessionStatus())) +
-					" (sessionStatus: 0=Closed 1=Active)";
-				api.OnLogged(message, [] {}, [](auto error) {});
-			}
-			// 既にリンクがある場合は ConnectionStatusChanged が発火しない
-			// (変化イベントのため)。現在値を確認して自前で通知する。
-			if (device.ConnectionStatus() == winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus::Connected)
-			{
-				const auto state_args = ConnectionStateArgs::kConnected;
-				api.OnConnectionStateChanged(peripheral_args, state_args, [] {}, [](auto error) {});
-			}
-			result(std::nullopt);
-		}
-		catch (const winrt::hresult_error &ex)
-		{
-			result(FlutterError("winrt::hresult_error", winrt::to_string(ex.message())));
-		}
-		catch (const std::exception &ex)
-		{
-			result(FlutterError("std::exception", ex.what()));
-		}
-	}
-
-	winrt::fire_and_forget CentralManagerImpl::ConnectMaintainedAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
+			winrt::fire_and_forget CentralManagerImpl::ConnectMaintainedAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
 	{
 		try
 		{
@@ -620,7 +449,6 @@ namespace bluetooth_low_energy_windows
 			m_sessions[address_args] = session;
 			session.MaintainConnection(true);
 			auto &api = m_api.value();
-			api.OnLogged("connectMaintained: MaintainConnection=true set (canMaintain=1) — await onConnectionStateChanged(connected)", [] {}, [](auto error) {});
 			// 既にリンクがある場合は ConnectionStatusChanged が発火しない
 			// (変化イベントのため)。現在値を確認して自前で通知する。
 			if (device.ConnectionStatus() == winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus::Connected)
@@ -1683,23 +1511,6 @@ namespace bluetooth_low_energy_windows
 			// スレッドで行い、マップの変更を 1 スレッドに寄せる。
 			auto &api = m_api.value();
 			// 調査用: 状態が変わるたびにセッションの様子を記録する。
-			// 接続中でも sessionStatus が Closed のままなら、リンクはあるのに
-			// GATT セッションが有効になっていないことになる。
-			{
-				const auto s = m_sessions.find(address_args);
-				if (s != m_sessions.end() && s->second.has_value())
-				{
-					const auto &session = s->second.value();
-					const auto message =
-						std::string("connection status changed: status=") +
-						std::to_string(static_cast<int32_t>(status)) +
-						" sessionStatus=" + std::to_string(static_cast<int32_t>(session.SessionStatus())) +
-						" maintain=" + (session.MaintainConnection() ? "true" : "false") +
-						" maxPduSize=" + std::to_string(session.MaxPduSize()) +
-						" (status: 0=Disconnected 1=Connected / sessionStatus: 0=Closed 1=Active)";
-					api.OnLogged(message, [] {}, [](auto error) {});
-				}
-			}
 			if (status == winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus::Disconnected)
 			{
 				// 維持依頼(MaintainConnection)が生きているなら、装置と
@@ -1714,7 +1525,6 @@ namespace bluetooth_low_energy_windows
 					// ハンドルは再確立後もそのまま使えるべきで、捨てると
 					// 参照が宙に浮く。CCCD は装置側が切断で落とすため、
 					// 通知の張り直しは呼び出し側の責務。
-					api.OnLogged("link lost: MaintainConnection=true のためセッションを保持する(OS の再確立を待つ)", [] {}, [](auto error) {});
 				}
 				else
 				{

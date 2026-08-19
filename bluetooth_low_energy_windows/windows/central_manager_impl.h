@@ -49,8 +49,6 @@ namespace bluetooth_low_energy_windows
 		void Pair(int64_t address_args, const DevicePairingProtectionLevelArgs &protection_level_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result) override;
 		void Unpair(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		void IsPaired(int64_t address_args, std::function<void(ErrorOr<bool> reply)> result) override;
-		void GetPairedPeripherals(std::function<void(ErrorOr<flutter::EncodableList> reply)> result) override;
-		void ConnectPaired(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		void ConnectMaintained(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		std::optional<FlutterError> SetMaintainConnection(int64_t address_args, bool enable_args) override;
 
@@ -84,8 +82,6 @@ namespace bluetooth_low_energy_windows
 
 		winrt::fire_and_forget InitializeAsync(std::function<void(std::optional<FlutterError> reply)> result);
 		winrt::fire_and_forget ConnectAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result);
-		winrt::fire_and_forget GetPairedPeripheralsAsync(std::function<void(ErrorOr<flutter::EncodableList> reply)> result);
-		winrt::fire_and_forget ConnectPairedAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result);
 		winrt::fire_and_forget ConnectMaintainedAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result);
 		winrt::fire_and_forget GetServicesAsync(int64_t address_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<flutter::EncodableList> reply)> result);
 		winrt::fire_and_forget GetIncludedServicesAsync(int64_t address_args, int64_t handle_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<flutter::EncodableList> reply)> result);

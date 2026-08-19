@@ -133,19 +133,6 @@ class CentralArgs {
   CentralArgs(this.addressArgs);
 }
 
-/// OS が関連付け(ペアリング)を保持している装置。
-///
-/// 広告(スキャン)ではなく、OS の関連付けの一覧から得られる。
-class PairedPeripheralArgs {
-  final int addressArgs;
-  final String? nameArgs;
-
-  /// `DeviceInformation.Id`(関連付けの識別子)。アドレスと違い、
-  /// OS がこの装置を指すために使う正式な ID。
-  final String idArgs;
-
-  PairedPeripheralArgs(this.addressArgs, this.nameArgs, this.idArgs);
-}
 
 class PeripheralArgs {
   final int addressArgs;
@@ -371,42 +358,30 @@ abstract class CentralManagerHostApi {
   @async
   bool isPaired(int addressArgs);
 
-  /// OS が関連付け(ペアリング)を保持している装置を列挙する。
+  /// `GattSession.MaintainConnection` を立てて接続を開始する。
   ///
-  /// `BluetoothLEDevice.GetDeviceSelectorFromPairingState(true)` の AQS を
-  /// `DeviceInformation.FindAllAsync` に渡して得る。広告を待つ必要はなく、
-  /// 装置が圏外でも一覧には出る(接続できるかは別)。
-  @async
-  List<PairedPeripheralArgs> getPairedPeripherals();
-
-  /// 関連付け済みの装置へ、その関連付け経由で接続する。
+  /// connect の接続待ちは OS 内部で 7 秒固定・キャンセル不可である。
+  /// こちらは「デバイスが現れ次第つなぐ」を OS へ依頼し、リンク確立を
+  /// 待たずに返る。確立は onConnectionStateChanged(connected)で通知する
+  /// ので、待ち時間の上限と中断は呼び出し側が決める。中断は disconnect。
   ///
-  /// connect はアドレスから装置オブジェクトを作る(`FromBluetoothAddressAsync`)
-  /// のに対し、こちらは OS が保持している関連付け(AssociationEndpoint)を
-  /// 引いて `FromIdAsync` で作る。ペアリング済み装置に対して OS が正式に
-  /// 用意している経路はこちら。
+  /// 依頼はセッションが生きている限り有効であり、接続中に維持を解除しては
+  /// ならない。Windows でリンクを保持するのは維持依頼か実行中の GATT 操作の
+  /// どちらかで、確立直後はまだ後者を持たないため、そこで解除すると OS が
+  /// リンクを解体する。解除は disconnect が行う。
   ///
-  /// 関連付けが無い装置ではエラーになる(先に pair が要る)。
-  @async
-  void connectPaired(int addressArgs);
-
-  /// `GattSession.MaintainConnection` 方式で接続を開始する。
-  ///
-  /// connect(GATT 操作起点)の接続待ちは OS 内部で 7 秒固定・キャンセル
-  /// 不可(公式文書)。こちらは MaintainConnection を true にして
-  /// 「デバイスが現れ次第 OS が接続する」を無期限で依頼し、**リンク確立を
-  /// 待たずに返る**。確立は onConnectionStateChanged(connected) で通知
-  /// されるため、待ち時間の上限と中断(disconnect = 参照解放で依頼ごと
-  /// 消える)は呼び出し側が管理する。
-  ///
-  /// true のままだとリンク断のたびに OS が自動で張り直すため、確立後は
-  /// setMaintainConnection(false) で戻すこと(再接続の主導権をアプリに残す)。
+  /// 維持が有効な間、リンクが失われても OS が張り直す。呼び出し側には
+  /// 切断と再接続として通知され、装置・セッション・GATT オブジェクトは
+  /// 保持されるのでハンドルはそのまま使える。ただし通知の購読(CCCD)は
+  /// 装置側が切断で落とすため、張り直しは呼び出し側の責務である。
   @async
   void connectMaintained(int addressArgs);
 
-  /// `GattSession.MaintainConnection` を設定する。
-  /// connectMaintained で確立した後に false へ戻す用途。
-  /// セッション未保持(未接続)の装置に対してはエラー。
+  /// `GattSession.MaintainConnection` を明示的に切り替える。
+  ///
+  /// 通常は connectMaintained と disconnect で足りる。接続中の解除は
+  /// リンクの解体を招くため、その用途では使わないこと。
+  /// セッションを保持していない(未接続の)装置に対してはエラーになる。
   void setMaintainConnection(int addressArgs, bool enableArgs);
 }
 
