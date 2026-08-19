@@ -414,11 +414,15 @@ namespace bluetooth_low_energy_windows
 		{
 			// 「ペアリング済みの BLE 装置」を指す AQS。広告ではなく OS が
 			// 保持している関連付け(AssociationEndpoint)の一覧を引く。
+			const auto ui_thread = m_ui_thread;
 			const auto selector = winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::GetDeviceSelectorFromPairingState(true);
 			const auto &infos = co_await winrt::Windows::Devices::Enumeration::DeviceInformation::FindAllAsync(selector);
 			auto items_args = flutter::EncodableList();
 			for (const auto &info : infos)
 			{
+				// FromIdAsync は同意を求めることがあり、公式に「UI スレッドから
+				// 呼ぶこと」とされている。呼び出しを UI スレッドで開始する。
+				co_await ui_thread;
 				const auto &device = co_await winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromIdAsync(info.Id());
 				if (device == nullptr)
 				{
@@ -430,7 +434,6 @@ namespace bluetooth_low_energy_windows
 				const auto item_args = PairedPeripheralArgs(address_args, &name_args, id_args);
 				items_args.emplace_back(flutter::CustomEncodableValue(item_args));
 			}
-			const auto ui_thread = m_ui_thread;
 			co_await ui_thread;
 			result(items_args);
 		}
@@ -453,11 +456,15 @@ namespace bluetooth_low_energy_windows
 			// はアドレスからその場で作るのに対し、こちらは OS が保持して
 			// いる関連付けを経由する(ペアリング済み装置への正規の経路)。
 			const auto address = static_cast<uint64_t>(address_args);
+			const auto ui_thread = m_ui_thread;
 			const auto selector = winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::GetDeviceSelectorFromPairingState(true);
 			const auto &infos = co_await winrt::Windows::Devices::Enumeration::DeviceInformation::FindAllAsync(selector);
 			winrt::Windows::Devices::Bluetooth::BluetoothLEDevice device{nullptr};
 			for (const auto &info : infos)
 			{
+				// FromIdAsync は同意を求めることがあり、公式に「UI スレッドから
+				// 呼ぶこと」とされている。呼び出しを UI スレッドで開始する。
+				co_await ui_thread;
 				const auto &candidate = co_await winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromIdAsync(info.Id());
 				if (candidate != nullptr && candidate.BluetoothAddress() == address)
 				{
@@ -467,11 +474,37 @@ namespace bluetooth_low_energy_windows
 			}
 			if (device == nullptr)
 			{
+				co_await ui_thread;
 				result(FlutterError("NotPaired", "No paired association for this address (pair first)."));
 				co_return;
 			}
 			const auto id = device.BluetoothDeviceId();
 			const auto &session = co_await winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattSession::FromDeviceIdAsync(id);
+			// 調査用: OS 側が持っている情報だけで答えられるか(cached)と、
+			// この装置へのアクセス許可の状態を先に観測する。cached が成功
+			// して uncached が Unreachable になるなら、「装置と話せない」の
+			// ではなく「OS が無線を伴う要求を通していない」ことになる。
+			const auto &cached = co_await device.GetGattServicesAsync(winrt::Windows::Devices::Bluetooth::BluetoothCacheMode::Cached);
+			const auto cached_status = cached.Status();
+			const auto cached_count = cached_status == winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success
+										  ? cached.Services().Size()
+										  : 0;
+			const auto access_status = device.DeviceAccessInformation().CurrentStatus();
+			const auto connection_status = device.ConnectionStatus();
+			co_await ui_thread;
+			if (m_api.has_value())
+			{
+				const auto message =
+					"connectPaired diagnostics: cachedStatus=" +
+					std::to_string(static_cast<int32_t>(cached_status)) +
+					" cachedServices=" + std::to_string(cached_count) +
+					" deviceAccess=" + std::to_string(static_cast<int32_t>(access_status)) +
+					" connectionStatus=" + std::to_string(static_cast<int32_t>(connection_status)) +
+					" (cachedStatus: 0=Success 1=Unreachable 2=ProtocolError 3=AccessDenied "
+					"/ deviceAccess: 0=Unspecified 1=Allowed 2=DeniedByUser 3=DeniedBySystem "
+					"/ connectionStatus: 0=Disconnected 1=Connected)";
+				m_api.value().OnLogged(message, [] {}, [](auto error) {});
+			}
 			// 接続の確立手段は connect と同じ(uncached の探索)。装置
 			// オブジェクトの作り方だけが違う。
 			const auto &r = co_await device.GetGattServicesAsync(winrt::Windows::Devices::Bluetooth::BluetoothCacheMode::Uncached);
@@ -485,7 +518,6 @@ namespace bluetooth_low_energy_windows
 			const auto state_args = ConnectionStateArgs::kConnected;
 			const auto mtu = session.MaxPduSize();
 			const auto mtu_args = static_cast<int64_t>(mtu);
-			const auto ui_thread = m_ui_thread;
 			co_await ui_thread;
 			auto &api = m_api.value();
 			api.OnConnectionStateChanged(peripheral_args, state_args, [] {}, [](auto error) {});
