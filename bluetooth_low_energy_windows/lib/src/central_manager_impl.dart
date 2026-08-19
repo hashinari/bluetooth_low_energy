@@ -8,6 +8,7 @@ import 'api.dart';
 import 'pairing.dart';
 import 'api.g.dart';
 import 'gatt_impl.dart';
+import 'paired_peripheral.dart';
 import 'peripheral_impl.dart';
 
 /// ログの段付け(呼び出し側のログレベル設定が意味を持つように):
@@ -361,6 +362,42 @@ final class CentralManagerImpl
     final paired = await _api.isPaired(addressArgs);
     _logger.info('isPaired: $addressArgs -> $paired');
     return paired;
+  }
+
+  /// OS が関連付け(ペアリング)を保持している装置を列挙する。
+  ///
+  /// `BluetoothLEDevice.GetDeviceSelectorFromPairingState(true)` の AQS を
+  /// `DeviceInformation.FindAllAsync` に渡して得る。**スキャンは不要**で、
+  /// 装置が広告していなくても一覧には出る(接続できるかは別)。
+  Future<List<PairedPeripheral>> getPairedPeripherals() async {
+    _logger.info('getPairedPeripherals');
+    final itemsArgs = await _api.getPairedPeripherals();
+    return itemsArgs
+        .map(
+          (args) => PairedPeripheral(
+            peripheral: PeripheralImpl(address: args.addressArgs),
+            name: args.nameArgs,
+            id: args.idArgs,
+          ),
+        )
+        .toList();
+  }
+
+  /// 関連付け済みの装置へ、その関連付け経由で接続する。
+  ///
+  /// [connect] がアドレスから装置オブジェクトを作る
+  /// (`FromBluetoothAddressAsync`)のに対し、こちらは OS が保持している
+  /// 関連付け(AssociationEndpoint)を引いて `FromIdAsync` で作る。
+  /// ペアリング済み装置に対して Windows が正式に用意している経路はこちら。
+  ///
+  /// 関連付けが無い装置ではエラーになる(先に [pair] が要る)。
+  Future<void> connectPaired(Peripheral peripheral) async {
+    if (peripheral is! PeripheralImpl) {
+      throw TypeError();
+    }
+    final addressArgs = peripheral.address;
+    _logger.info('connectPaired: $addressArgs');
+    await _api.connectPaired(addressArgs);
   }
 
   /// `GattSession.MaintainConnection` 方式で接続を開始する。

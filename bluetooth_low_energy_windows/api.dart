@@ -133,6 +133,20 @@ class CentralArgs {
   CentralArgs(this.addressArgs);
 }
 
+/// OS が関連付け(ペアリング)を保持している装置。
+///
+/// 広告(スキャン)ではなく、OS の関連付けの一覧から得られる。
+class PairedPeripheralArgs {
+  final int addressArgs;
+  final String? nameArgs;
+
+  /// `DeviceInformation.Id`(関連付けの識別子)。アドレスと違い、
+  /// OS がこの装置を指すために使う正式な ID。
+  final String idArgs;
+
+  PairedPeripheralArgs(this.addressArgs, this.nameArgs, this.idArgs);
+}
+
 class PeripheralArgs {
   final int addressArgs;
 
@@ -356,6 +370,25 @@ abstract class CentralManagerHostApi {
   /// 同期メソッドにはできない(`.get()` が `!is_sta_thread()` で落ちる)。
   @async
   bool isPaired(int addressArgs);
+
+  /// OS が関連付け(ペアリング)を保持している装置を列挙する。
+  ///
+  /// `BluetoothLEDevice.GetDeviceSelectorFromPairingState(true)` の AQS を
+  /// `DeviceInformation.FindAllAsync` に渡して得る。広告を待つ必要はなく、
+  /// 装置が圏外でも一覧には出る(接続できるかは別)。
+  @async
+  List<PairedPeripheralArgs> getPairedPeripherals();
+
+  /// 関連付け済みの装置へ、その関連付け経由で接続する。
+  ///
+  /// connect はアドレスから装置オブジェクトを作る(`FromBluetoothAddressAsync`)
+  /// のに対し、こちらは OS が保持している関連付け(AssociationEndpoint)を
+  /// 引いて `FromIdAsync` で作る。ペアリング済み装置に対して OS が正式に
+  /// 用意している経路はこちら。
+  ///
+  /// 関連付けが無い装置ではエラーになる(先に pair が要る)。
+  @async
+  void connectPaired(int addressArgs);
 
   /// `GattSession.MaintainConnection` 方式で接続を開始する。
   ///

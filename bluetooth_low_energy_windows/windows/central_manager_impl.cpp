@@ -100,6 +100,16 @@ namespace bluetooth_low_energy_windows
 		ConnectAsync(address_args, std::move(result));
 	}
 
+	void CentralManagerImpl::GetPairedPeripherals(std::function<void(ErrorOr<flutter::EncodableList> reply)> result)
+	{
+		GetPairedPeripheralsAsync(std::move(result));
+	}
+
+	void CentralManagerImpl::ConnectPaired(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
+	{
+		ConnectPairedAsync(address_args, std::move(result));
+	}
+
 	void CentralManagerImpl::ConnectMaintained(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
 	{
 		ConnectMaintainedAsync(address_args, std::move(result));
@@ -395,6 +405,117 @@ namespace bluetooth_low_energy_windows
 			const auto message = ex.what();
 			const auto error = FlutterError(code, message);
 			result(error);
+		}
+	}
+
+	winrt::fire_and_forget CentralManagerImpl::GetPairedPeripheralsAsync(std::function<void(ErrorOr<flutter::EncodableList> reply)> result)
+	{
+		try
+		{
+			// 「ペアリング済みの BLE 装置」を指す AQS。広告ではなく OS が
+			// 保持している関連付け(AssociationEndpoint)の一覧を引く。
+			const auto selector = winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::GetDeviceSelectorFromPairingState(true);
+			const auto &infos = co_await winrt::Windows::Devices::Enumeration::DeviceInformation::FindAllAsync(selector);
+			auto items_args = flutter::EncodableList();
+			for (const auto &info : infos)
+			{
+				const auto &device = co_await winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromIdAsync(info.Id());
+				if (device == nullptr)
+				{
+					continue;
+				}
+				const auto address_args = static_cast<int64_t>(device.BluetoothAddress());
+				const auto name_args = winrt::to_string(device.Name());
+				const auto id_args = winrt::to_string(info.Id());
+				const auto item_args = PairedPeripheralArgs(address_args, &name_args, id_args);
+				items_args.emplace_back(flutter::CustomEncodableValue(item_args));
+			}
+			const auto ui_thread = m_ui_thread;
+			co_await ui_thread;
+			result(items_args);
+		}
+		catch (const winrt::hresult_error &ex)
+		{
+			result(FlutterError("winrt::hresult_error", winrt::to_string(ex.message())));
+		}
+		catch (const std::exception &ex)
+		{
+			result(FlutterError("std::exception", ex.what()));
+		}
+	}
+
+	winrt::fire_and_forget CentralManagerImpl::ConnectPairedAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
+	{
+		try
+		{
+			// 関連付けの一覧からこのアドレスの装置を引き当て、`FromIdAsync`
+			// で装置オブジェクトを作る。connect の `FromBluetoothAddressAsync`
+			// はアドレスからその場で作るのに対し、こちらは OS が保持して
+			// いる関連付けを経由する(ペアリング済み装置への正規の経路)。
+			const auto address = static_cast<uint64_t>(address_args);
+			const auto selector = winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::GetDeviceSelectorFromPairingState(true);
+			const auto &infos = co_await winrt::Windows::Devices::Enumeration::DeviceInformation::FindAllAsync(selector);
+			winrt::Windows::Devices::Bluetooth::BluetoothLEDevice device{nullptr};
+			for (const auto &info : infos)
+			{
+				const auto &candidate = co_await winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromIdAsync(info.Id());
+				if (candidate != nullptr && candidate.BluetoothAddress() == address)
+				{
+					device = candidate;
+					break;
+				}
+			}
+			if (device == nullptr)
+			{
+				result(FlutterError("NotPaired", "No paired association for this address (pair first)."));
+				co_return;
+			}
+			const auto id = device.BluetoothDeviceId();
+			const auto &session = co_await winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattSession::FromDeviceIdAsync(id);
+			// 接続の確立手段は connect と同じ(uncached の探索)。装置
+			// オブジェクトの作り方だけが違う。
+			const auto &r = co_await device.GetGattServicesAsync(winrt::Windows::Devices::Bluetooth::BluetoothCacheMode::Uncached);
+			const auto status = r.Status();
+			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
+			{
+				result(GattError("ConnectPaired", status, r.ProtocolError()));
+				co_return;
+			}
+			const auto peripheral_args = PeripheralArgs(address_args);
+			const auto state_args = ConnectionStateArgs::kConnected;
+			const auto mtu = session.MaxPduSize();
+			const auto mtu_args = static_cast<int64_t>(mtu);
+			const auto ui_thread = m_ui_thread;
+			co_await ui_thread;
+			auto &api = m_api.value();
+			api.OnConnectionStateChanged(peripheral_args, state_args, [] {}, [](auto error) {});
+			api.OnMTUChanged(peripheral_args, mtu_args, [] {}, [](auto error) {});
+			m_device_connection_status_changed_revokers[address_args] = device.ConnectionStatusChanged(
+				winrt::auto_revoke,
+				[this, address_args](winrt::Windows::Devices::Bluetooth::BluetoothLEDevice device, auto obj)
+				{
+					const auto status = device.ConnectionStatus();
+					HandleConnectionStatusChanged(address_args, status);
+				});
+			m_session_max_pdu_size_changed_revokers[address_args] = session.MaxPduSizeChanged(
+				winrt::auto_revoke,
+				[this, peripheral_args](winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattSession session, auto obj)
+				{
+					const auto mtu = session.MaxPduSize();
+					const auto mtu_args = static_cast<int64_t>(mtu);
+					NotifyMTUChanged(peripheral_args, mtu_args);
+				});
+			m_devices[address_args] = device;
+			m_sessions[address_args] = session;
+			result(std::nullopt);
+		}
+		catch (const winrt::hresult_error &ex)
+		{
+			result(FlutterError("winrt::hresult_error", winrt::to_string(ex.message())));
+		}
+		catch (const std::exception &ex)
+		{
+			result(FlutterError("std::exception", ex.what()));
 		}
 	}
 
