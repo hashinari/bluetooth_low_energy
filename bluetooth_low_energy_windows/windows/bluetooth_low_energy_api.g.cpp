@@ -1760,6 +1760,69 @@ void CentralManagerHostApi::SetUp(
       channel.SetMessageHandler(nullptr);
     }
   }
+  {
+    BasicMessageChannel<> channel(binary_messenger, "dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.connectMaintained" + prepended_suffix, &GetCodec());
+    if (api != nullptr) {
+      channel.SetMessageHandler([api](const EncodableValue& message, const flutter::MessageReply<EncodableValue>& reply) {
+        try {
+          const auto& args = std::get<EncodableList>(message);
+          const auto& encodable_address_args_arg = args.at(0);
+          if (encodable_address_args_arg.IsNull()) {
+            reply(WrapError("address_args_arg unexpectedly null."));
+            return;
+          }
+          const int64_t address_args_arg = encodable_address_args_arg.LongValue();
+          api->ConnectMaintained(address_args_arg, [reply](std::optional<FlutterError>&& output) {
+            if (output.has_value()) {
+              reply(WrapError(output.value()));
+              return;
+            }
+            EncodableList wrapped;
+            wrapped.push_back(EncodableValue());
+            reply(EncodableValue(std::move(wrapped)));
+          });
+        } catch (const std::exception& exception) {
+          reply(WrapError(exception.what()));
+        }
+      });
+    } else {
+      channel.SetMessageHandler(nullptr);
+    }
+  }
+  {
+    BasicMessageChannel<> channel(binary_messenger, "dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.setMaintainConnection" + prepended_suffix, &GetCodec());
+    if (api != nullptr) {
+      channel.SetMessageHandler([api](const EncodableValue& message, const flutter::MessageReply<EncodableValue>& reply) {
+        try {
+          const auto& args = std::get<EncodableList>(message);
+          const auto& encodable_address_args_arg = args.at(0);
+          if (encodable_address_args_arg.IsNull()) {
+            reply(WrapError("address_args_arg unexpectedly null."));
+            return;
+          }
+          const int64_t address_args_arg = encodable_address_args_arg.LongValue();
+          const auto& encodable_enable_args_arg = args.at(1);
+          if (encodable_enable_args_arg.IsNull()) {
+            reply(WrapError("enable_args_arg unexpectedly null."));
+            return;
+          }
+          const auto& enable_args_arg = std::get<bool>(encodable_enable_args_arg);
+          std::optional<FlutterError> output = api->SetMaintainConnection(address_args_arg, enable_args_arg);
+          if (output.has_value()) {
+            reply(WrapError(output.value()));
+            return;
+          }
+          EncodableList wrapped;
+          wrapped.push_back(EncodableValue());
+          reply(EncodableValue(std::move(wrapped)));
+        } catch (const std::exception& exception) {
+          reply(WrapError(exception.what()));
+        }
+      });
+    } else {
+      channel.SetMessageHandler(nullptr);
+    }
+  }
 }
 
 EncodableValue CentralManagerHostApi::WrapError(std::string_view error_message) {

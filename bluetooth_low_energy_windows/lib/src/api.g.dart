@@ -1499,6 +1499,66 @@ class CentralManagerHostApi {
       return (pigeonVar_replyList[0] as bool?)!;
     }
   }
+
+  /// `GattSession.MaintainConnection` 方式で接続を開始する。
+  ///
+  /// connect(GATT 操作起点)の接続待ちは OS 内部で 7 秒固定・キャンセル
+  /// 不可(公式文書)。こちらは MaintainConnection を true にして
+  /// 「デバイスが現れ次第 OS が接続する」を無期限で依頼し、**リンク確立を
+  /// 待たずに返る**。確立は onConnectionStateChanged(connected) で通知
+  /// されるため、待ち時間の上限と中断(disconnect = 参照解放で依頼ごと
+  /// 消える)は呼び出し側が管理する。
+  ///
+  /// true のままだとリンク断のたびに OS が自動で張り直すため、確立後は
+  /// setMaintainConnection(false) で戻すこと(再接続の主導権をアプリに残す)。
+  Future<void> connectMaintained(int addressArgs) async {
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.connectMaintained$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[addressArgs]);
+    final List<Object?>? pigeonVar_replyList =
+        await pigeonVar_sendFuture as List<Object?>?;
+    if (pigeonVar_replyList == null) {
+      throw _createConnectionError(pigeonVar_channelName);
+    } else if (pigeonVar_replyList.length > 1) {
+      throw PlatformException(
+        code: pigeonVar_replyList[0]! as String,
+        message: pigeonVar_replyList[1] as String?,
+        details: pigeonVar_replyList[2],
+      );
+    } else {
+      return;
+    }
+  }
+
+  /// `GattSession.MaintainConnection` を設定する。
+  /// connectMaintained で確立した後に false へ戻す用途。
+  /// セッション未保持(未接続)の装置に対してはエラー。
+  Future<void> setMaintainConnection(int addressArgs, bool enableArgs) async {
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.setMaintainConnection$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[addressArgs, enableArgs]);
+    final List<Object?>? pigeonVar_replyList =
+        await pigeonVar_sendFuture as List<Object?>?;
+    if (pigeonVar_replyList == null) {
+      throw _createConnectionError(pigeonVar_channelName);
+    } else if (pigeonVar_replyList.length > 1) {
+      throw PlatformException(
+        code: pigeonVar_replyList[0]! as String,
+        message: pigeonVar_replyList[1] as String?,
+        details: pigeonVar_replyList[2],
+      );
+    } else {
+      return;
+    }
+  }
 }
 
 abstract class CentralManagerFlutterApi {

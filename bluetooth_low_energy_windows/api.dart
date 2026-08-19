@@ -356,6 +356,25 @@ abstract class CentralManagerHostApi {
   /// 同期メソッドにはできない(`.get()` が `!is_sta_thread()` で落ちる)。
   @async
   bool isPaired(int addressArgs);
+
+  /// `GattSession.MaintainConnection` 方式で接続を開始する。
+  ///
+  /// connect(GATT 操作起点)の接続待ちは OS 内部で 7 秒固定・キャンセル
+  /// 不可(公式文書)。こちらは MaintainConnection を true にして
+  /// 「デバイスが現れ次第 OS が接続する」を無期限で依頼し、**リンク確立を
+  /// 待たずに返る**。確立は onConnectionStateChanged(connected) で通知
+  /// されるため、待ち時間の上限と中断(disconnect = 参照解放で依頼ごと
+  /// 消える)は呼び出し側が管理する。
+  ///
+  /// true のままだとリンク断のたびに OS が自動で張り直すため、確立後は
+  /// setMaintainConnection(false) で戻すこと(再接続の主導権をアプリに残す)。
+  @async
+  void connectMaintained(int addressArgs);
+
+  /// `GattSession.MaintainConnection` を設定する。
+  /// connectMaintained で確立した後に false へ戻す用途。
+  /// セッション未保持(未接続)の装置に対してはエラー。
+  void setMaintainConnection(int addressArgs, bool enableArgs);
 }
 
 @FlutterApi()
