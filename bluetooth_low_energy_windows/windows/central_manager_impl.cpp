@@ -1682,6 +1682,24 @@ namespace bluetooth_low_energy_windows
 			// 切断時の後片付け(内部マップの変更)もプラットフォーム
 			// スレッドで行い、マップの変更を 1 スレッドに寄せる。
 			auto &api = m_api.value();
+			// 調査用: 状態が変わるたびにセッションの様子を記録する。
+			// 接続中でも sessionStatus が Closed のままなら、リンクはあるのに
+			// GATT セッションが有効になっていないことになる。
+			{
+				const auto s = m_sessions.find(address_args);
+				if (s != m_sessions.end() && s->second.has_value())
+				{
+					const auto &session = s->second.value();
+					const auto message =
+						std::string("connection status changed: status=") +
+						std::to_string(static_cast<int32_t>(status)) +
+						" sessionStatus=" + std::to_string(static_cast<int32_t>(session.SessionStatus())) +
+						" maintain=" + (session.MaintainConnection() ? "true" : "false") +
+						" maxPduSize=" + std::to_string(session.MaxPduSize()) +
+						" (status: 0=Disconnected 1=Connected / sessionStatus: 0=Closed 1=Active)";
+					api.OnLogged(message, [] {}, [](auto error) {});
+				}
+			}
 			if (status == winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus::Disconnected)
 			{
 				// 維持依頼(MaintainConnection)が生きているなら、装置と
