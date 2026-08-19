@@ -1546,6 +1546,46 @@ void CentralManagerHostApi::SetUp(
     }
   }
   {
+    BasicMessageChannel<> channel(binary_messenger, "dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.setCharacteristicProtectionLevel" + prepended_suffix, &GetCodec());
+    if (api != nullptr) {
+      channel.SetMessageHandler([api](const EncodableValue& message, const flutter::MessageReply<EncodableValue>& reply) {
+        try {
+          const auto& args = std::get<EncodableList>(message);
+          const auto& encodable_address_args_arg = args.at(0);
+          if (encodable_address_args_arg.IsNull()) {
+            reply(WrapError("address_args_arg unexpectedly null."));
+            return;
+          }
+          const int64_t address_args_arg = encodable_address_args_arg.LongValue();
+          const auto& encodable_handle_args_arg = args.at(1);
+          if (encodable_handle_args_arg.IsNull()) {
+            reply(WrapError("handle_args_arg unexpectedly null."));
+            return;
+          }
+          const int64_t handle_args_arg = encodable_handle_args_arg.LongValue();
+          const auto& encodable_level_args_arg = args.at(2);
+          if (encodable_level_args_arg.IsNull()) {
+            reply(WrapError("level_args_arg unexpectedly null."));
+            return;
+          }
+          const auto& level_args_arg = std::any_cast<const GATTProtectionLevelArgs&>(std::get<CustomEncodableValue>(encodable_level_args_arg));
+          std::optional<FlutterError> output = api->SetCharacteristicProtectionLevel(address_args_arg, handle_args_arg, level_args_arg);
+          if (output.has_value()) {
+            reply(WrapError(output.value()));
+            return;
+          }
+          EncodableList wrapped;
+          wrapped.push_back(EncodableValue());
+          reply(EncodableValue(std::move(wrapped)));
+        } catch (const std::exception& exception) {
+          reply(WrapError(exception.what()));
+        }
+      });
+    } else {
+      channel.SetMessageHandler(nullptr);
+    }
+  }
+  {
     BasicMessageChannel<> channel(binary_messenger, "dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.readDescriptor" + prepended_suffix, &GetCodec());
     if (api != nullptr) {
       channel.SetMessageHandler([api](const EncodableValue& message, const flutter::MessageReply<EncodableValue>& reply) {

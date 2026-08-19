@@ -7,7 +7,10 @@ import 'src/peripheral_manager_impl.dart';
 // この実装パッケージの公開面にだけ出す。
 export 'src/central_manager_impl.dart' show CentralManagerImpl;
 export 'src/pairing.dart'
-    show DevicePairingProtectionLevel, DevicePairingResultStatus;
+    show
+        DevicePairingProtectionLevel,
+        DevicePairingResultStatus,
+        GATTProtectionLevel;
 
 abstract class BluetoothLowEnergyWindowsPlugin {
   static void registerWith() {

@@ -1058,6 +1058,43 @@ namespace bluetooth_low_energy_windows
 		}
 	}
 
+	std::optional<FlutterError> CentralManagerImpl::SetCharacteristicProtectionLevel(int64_t address_args, int64_t handle_args, const GATTProtectionLevelArgs &level_args)
+	{
+		try
+		{
+			const auto &characteristic = RetrieveCharacteristic(address_args, handle_args);
+			using winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattProtectionLevel;
+			auto level = GattProtectionLevel::Plain;
+			switch (level_args)
+			{
+			case GATTProtectionLevelArgs::kAuthenticationRequired:
+				level = GattProtectionLevel::AuthenticationRequired;
+				break;
+			// 上流由来の綴り(entryption)をそのまま写した列挙値。
+			case GATTProtectionLevelArgs::kEntryptionRequired:
+				level = GattProtectionLevel::EncryptionRequired;
+				break;
+			case GATTProtectionLevelArgs::kEncryptionAndAuthenticationRequired:
+				level = GattProtectionLevel::EncryptionAndAuthenticationRequired;
+				break;
+			case GATTProtectionLevelArgs::kPlain:
+			default:
+				level = GattProtectionLevel::Plain;
+				break;
+			}
+			characteristic.ProtectionLevel(level);
+			return std::nullopt;
+		}
+		catch (const winrt::hresult_error &ex)
+		{
+			return FlutterError("winrt::hresult_error", winrt::to_string(ex.message()));
+		}
+		catch (const std::exception &ex)
+		{
+			return FlutterError("std::exception", ex.what());
+		}
+	}
+
 	// pigeon の enum → WinRT の保護レベル。
 	static winrt::Windows::Devices::Enumeration::DevicePairingProtectionLevel ProtectionLevelFromArgs(const DevicePairingProtectionLevelArgs &args)
 	{

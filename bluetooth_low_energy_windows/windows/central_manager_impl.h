@@ -43,6 +43,7 @@ namespace bluetooth_low_energy_windows
 		void ReadCharacteristic(int64_t address_args, int64_t handle_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<std::vector<uint8_t>> reply)> result) override;
 		void WriteCharacteristic(int64_t address_args, int64_t handle_args, const std::vector<uint8_t> &value_args, const GATTCharacteristicWriteTypeArgs &type_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		void SetCharacteristicNotifyState(int64_t address_args, int64_t handle_args, const GATTCharacteristicNotifyStateArgs &state_args, std::function<void(std::optional<FlutterError> reply)> result) override;
+		std::optional<FlutterError> SetCharacteristicProtectionLevel(int64_t address_args, int64_t handle_args, const GATTProtectionLevelArgs &level_args) override;
 		void ReadDescriptor(int64_t address_args, int64_t handle_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<std::vector<uint8_t>> reply)> result) override;
 		void WriteDescriptor(int64_t address_args, int64_t handle_args, const std::vector<uint8_t> &value_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		void Pair(int64_t address_args, const DevicePairingProtectionLevelArgs &protection_level_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result) override;

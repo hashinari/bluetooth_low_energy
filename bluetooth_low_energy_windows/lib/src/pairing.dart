@@ -1,5 +1,41 @@
 import 'api.g.dart';
 
+/// 特性への無線通信に要求する GATT セキュリティ。Windows の
+/// `GattProtectionLevel` に対応する。
+///
+/// `CentralManagerImpl.setCharacteristicProtectionLevel` で特性に設定する。
+enum GATTProtectionLevel {
+  /// 保護なし。
+  plain,
+
+  /// 認証(MITM)必須。
+  authenticationRequired,
+
+  /// 暗号化必須。
+  encryptionRequired,
+
+  /// 暗号化 + 認証必須。
+  encryptionAndAuthenticationRequired,
+}
+
+/// 公開する列挙 → 生成された引数型。
+extension GATTProtectionLevelX on GATTProtectionLevel {
+  /// [GATTProtectionLevelArgs] へ写す。
+  GATTProtectionLevelArgs toArgs() {
+    switch (this) {
+      case GATTProtectionLevel.plain:
+        return GATTProtectionLevelArgs.plain;
+      case GATTProtectionLevel.authenticationRequired:
+        return GATTProtectionLevelArgs.authenticationRequired;
+      case GATTProtectionLevel.encryptionRequired:
+        // 上流由来の綴り(entryption)をそのまま持つ列挙値へ写す。
+        return GATTProtectionLevelArgs.entryptionRequired;
+      case GATTProtectionLevel.encryptionAndAuthenticationRequired:
+        return GATTProtectionLevelArgs.encryptionAndAuthenticationRequired;
+    }
+  }
+}
+
 /// pair で要求する保護レベル。Windows の `DevicePairingProtectionLevel` に
 /// 対応する。
 ///

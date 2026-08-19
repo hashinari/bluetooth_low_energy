@@ -1317,6 +1317,36 @@ class CentralManagerHostApi {
     }
   }
 
+  /// 特性への無線通信に要求する GATT セキュリティ
+  /// (`GattCharacteristic.ProtectionLevel`)を設定する。
+  ///
+  /// 設定後にその特性へ read/write すると、スタックは要求水準を満たす
+  /// リンク(暗号化等)を操作の前提として確立しようとする。装置側の
+  /// セキュリティ要求と一致させることで、ATT エラー(0x0F 等)を起点と
+  /// した事後の再試行ではなく、OS 主導の事前確立に切り替えられる。
+  Future<void> setCharacteristicProtectionLevel(int addressArgs, int handleArgs, GATTProtectionLevelArgs levelArgs) async {
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.setCharacteristicProtectionLevel$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[addressArgs, handleArgs, levelArgs]);
+    final List<Object?>? pigeonVar_replyList =
+        await pigeonVar_sendFuture as List<Object?>?;
+    if (pigeonVar_replyList == null) {
+      throw _createConnectionError(pigeonVar_channelName);
+    } else if (pigeonVar_replyList.length > 1) {
+      throw PlatformException(
+        code: pigeonVar_replyList[0]! as String,
+        message: pigeonVar_replyList[1] as String?,
+        details: pigeonVar_replyList[2],
+      );
+    } else {
+      return;
+    }
+  }
+
   Future<Uint8List> readDescriptor(int addressArgs, int handleArgs, CacheModeArgs modeArgs) async {
     final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.readDescriptor$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(

@@ -249,6 +249,34 @@ final class CentralManagerImpl
     await _api.setCharacteristicNotifyState(addressArgs, handleArgs, stateArgs);
   }
 
+  /// 特性への無線通信に要求する GATT セキュリティ
+  /// (`GattCharacteristic.ProtectionLevel`)を設定する。
+  ///
+  /// 設定後にその特性へ read/write すると、スタックは要求水準を満たす
+  /// リンク(暗号化等)を操作の前提として確立しようとする。装置側の
+  /// セキュリティ要求と一致させることで、ATT エラー(0x0F 等)を起点と
+  /// した事後の再試行ではなく、OS 主導の事前確立に切り替えられる。
+  Future<void> setCharacteristicProtectionLevel(
+    Peripheral peripheral,
+    GATTCharacteristic characteristic, {
+    required GATTProtectionLevel level,
+  }) async {
+    if (peripheral is! PeripheralImpl ||
+        characteristic is! GATTCharacteristicImpl) {
+      throw TypeError();
+    }
+    final addressArgs = peripheral.address;
+    final handleArgs = characteristic.handle;
+    _logger.info(
+      'setCharacteristicProtectionLevel: $addressArgs.$handleArgs - $level',
+    );
+    await _api.setCharacteristicProtectionLevel(
+      addressArgs,
+      handleArgs,
+      level.toArgs(),
+    );
+  }
+
   @override
   Future<Uint8List> readDescriptor(
     Peripheral peripheral,

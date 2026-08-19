@@ -682,6 +682,17 @@ class CentralManagerHostApi {
     int64_t handle_args,
     const GATTCharacteristicNotifyStateArgs& state_args,
     std::function<void(std::optional<FlutterError> reply)> result) = 0;
+  // 特性への無線通信に要求する GATT セキュリティ
+  // (`GattCharacteristic.ProtectionLevel`)を設定する。
+  //
+  // 設定後にその特性へ read/write すると、スタックは要求水準を満たす
+  // リンク(暗号化等)を操作の前提として確立しようとする。装置側の
+  // セキュリティ要求と一致させることで、ATT エラー(0x0F 等)を起点と
+  // した事後の再試行ではなく、OS 主導の事前確立に切り替えられる。
+  virtual std::optional<FlutterError> SetCharacteristicProtectionLevel(
+    int64_t address_args,
+    int64_t handle_args,
+    const GATTProtectionLevelArgs& level_args) = 0;
   virtual void ReadDescriptor(
     int64_t address_args,
     int64_t handle_args,
