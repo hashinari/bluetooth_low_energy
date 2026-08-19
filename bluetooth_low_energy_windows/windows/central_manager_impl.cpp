@@ -131,6 +131,15 @@ namespace bluetooth_low_energy_windows
 	{
 		try
 		{
+			// 維持依頼(MaintainConnection)を明示的に取り下げてから参照を
+			// 手放す。参照解放だけでも依頼は消えるが、OS 側の解体には
+			// 「小さなタイムアウト」がある(公式文書)ため、切断要求の意図が
+			// 即座に伝わるよう先に false を書く。
+			const auto it = m_sessions.find(address_args);
+			if (it != m_sessions.end() && it->second.has_value())
+			{
+				it->second.value().MaintainConnection(false);
+			}
 			OnDisconnected(address_args);
 			auto &api = m_api.value();
 			const auto peripheral_args = PeripheralArgs(address_args);
