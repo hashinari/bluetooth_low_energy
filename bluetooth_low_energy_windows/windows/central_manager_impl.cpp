@@ -1003,16 +1003,6 @@ namespace bluetooth_low_energy_windows
 		}
 	}
 
-	void CentralManagerImpl::OnLinkLost(int64_t address_args)
-	{
-		// リンクに紐づくものだけ捨てる。装置とセッションは残すことで、
-		// 維持依頼(MaintainConnection)を生かしたままにする。
-		m_characteristic_value_changed_revokers.erase(address_args);
-		m_services.erase(address_args);
-		m_characteristics.erase(address_args);
-		m_descriptors.erase(address_args);
-	}
-
 	void CentralManagerImpl::OnDisconnected(int64_t address_args)
 	{
 		m_device_connection_status_changed_revokers.erase(address_args);
@@ -1702,7 +1692,10 @@ namespace bluetooth_low_energy_windows
 				const auto maintained = it != m_sessions.end() && it->second.has_value() && it->second.value().MaintainConnection();
 				if (maintained)
 				{
-					OnLinkLost(address_args);
+					// GATT オブジェクトも捨てない。呼び出し側が持っている
+					// ハンドルは再確立後もそのまま使えるべきで、捨てると
+					// 参照が宙に浮く。CCCD は装置側が切断で落とすため、
+					// 通知の張り直しは呼び出し側の責務。
 					api.OnLogged("link lost: MaintainConnection=true のためセッションを保持する(OS の再確立を待つ)", [] {}, [](auto error) {});
 				}
 				else
