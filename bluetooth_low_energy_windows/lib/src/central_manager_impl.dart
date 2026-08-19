@@ -383,12 +383,36 @@ final class CentralManagerImpl
         .toList();
   }
 
+  /// OS が保持している情報から GATT を組み立てる(無線での再探索をしない)。
+  ///
+  /// [discoverGATT] は uncached の再探索を行う。関連付け済みの装置では、
+  /// この再探索がリンク確立・暗号化・ATT MTU 交換まで進んだ直後に Windows
+  /// 側の切断を招き Unreachable になる事象が実測されている。OS はペアリング
+  /// 済み装置の GATT をデバイスノードに保持しているため、再探索は不要。
+  ///
+  /// 装置側の GATT 構成を変えた場合は、OS のキャッシュが古いままになり得る
+  /// (更新は Service Changed の通知による)。
+  Future<List<GATTService>> discoverGATTCached(Peripheral peripheral) async {
+    if (peripheral is! PeripheralImpl) {
+      throw TypeError();
+    }
+    final addressArgs = peripheral.address;
+    final servicesArgs = await _getServices(addressArgs, CacheModeArgs.cached);
+    return servicesArgs.map((args) => args.toService()).toList();
+  }
+
   /// 関連付け済みの装置へ、その関連付け経由で接続する。
   ///
   /// [connect] がアドレスから装置オブジェクトを作る
   /// (`FromBluetoothAddressAsync`)のに対し、こちらは OS が保持している
   /// 関連付け(AssociationEndpoint)を引いて `FromIdAsync` で作る。
   /// ペアリング済み装置に対して Windows が正式に用意している経路はこちら。
+  ///
+  /// 確立には `GattSession.MaintainConnection` を使い、**リンク確立を待たずに
+  /// 返る**([connect] のような uncached の再探索は行わない ──
+  /// [discoverGATTCached] の説明を参照)。確立は connectionStateChanged
+  /// (connected)で通知されるので、待ち時間の上限と中断([disconnect])は
+  /// 呼び出し側が決める。
   ///
   /// 関連付けが無い装置ではエラーになる(先に [pair] が要る)。
   Future<void> connectPaired(Peripheral peripheral) async {

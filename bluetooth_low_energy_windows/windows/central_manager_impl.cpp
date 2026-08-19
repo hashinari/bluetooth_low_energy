@@ -505,23 +505,22 @@ namespace bluetooth_low_energy_windows
 					"/ connectionStatus: 0=Disconnected 1=Connected)";
 				m_api.value().OnLogged(message, [] {}, [](auto error) {});
 			}
-			// 接続の確立手段は connect と同じ(uncached の探索)。装置
-			// オブジェクトの作り方だけが違う。
-			const auto &r = co_await device.GetGattServicesAsync(winrt::Windows::Devices::Bluetooth::BluetoothCacheMode::Uncached);
-			const auto status = r.Status();
-			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
+			// 確立に uncached の探索は使わない。関連付け済み装置への uncached
+			// の再探索は、リンク確立・暗号化・ATT MTU 交換まで進んだ直後に
+			// Windows 側が切断し Unreachable を返す(実測)。OS はこの装置の
+			// GATT を既に保持しており(上の cachedServices)、再探索は不要。
+			// 公式が挙げる接続開始手段のうち MaintainConnection を使う。
+			//
+			// リンク確立を待たずに返る。確立は onConnectionStateChanged
+			// (connected)で通知されるので、待ち時間の上限と中断は呼び出し側
+			// が決める。
+			if (!session.CanMaintainConnection())
 			{
-				result(GattError("ConnectPaired", status, r.ProtocolError()));
+				result(FlutterError("CannotMaintainConnection", "GattSession.CanMaintainConnection is false."));
 				co_return;
 			}
 			const auto peripheral_args = PeripheralArgs(address_args);
-			const auto state_args = ConnectionStateArgs::kConnected;
-			const auto mtu = session.MaxPduSize();
-			const auto mtu_args = static_cast<int64_t>(mtu);
-			co_await ui_thread;
-			auto &api = m_api.value();
-			api.OnConnectionStateChanged(peripheral_args, state_args, [] {}, [](auto error) {});
-			api.OnMTUChanged(peripheral_args, mtu_args, [] {}, [](auto error) {});
+			// 依頼を出す前にハンドラを登録し、確立イベントを取り逃さない。
 			m_device_connection_status_changed_revokers[address_args] = device.ConnectionStatusChanged(
 				winrt::auto_revoke,
 				[this, address_args](winrt::Windows::Devices::Bluetooth::BluetoothLEDevice device, auto obj)
@@ -539,6 +538,15 @@ namespace bluetooth_low_energy_windows
 				});
 			m_devices[address_args] = device;
 			m_sessions[address_args] = session;
+			session.MaintainConnection(true);
+			auto &api = m_api.value();
+			// 既にリンクがある場合は ConnectionStatusChanged が発火しない
+			// (変化イベントのため)。現在値を確認して自前で通知する。
+			if (device.ConnectionStatus() == winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus::Connected)
+			{
+				const auto state_args = ConnectionStateArgs::kConnected;
+				api.OnConnectionStateChanged(peripheral_args, state_args, [] {}, [](auto error) {});
+			}
 			result(std::nullopt);
 		}
 		catch (const winrt::hresult_error &ex)
