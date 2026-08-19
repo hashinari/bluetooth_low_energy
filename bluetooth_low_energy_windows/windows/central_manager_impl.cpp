@@ -540,6 +540,16 @@ namespace bluetooth_low_energy_windows
 			m_sessions[address_args] = session;
 			session.MaintainConnection(true);
 			auto &api = m_api.value();
+			// 調査用: 設定が実際に保持されているかを読み戻す。false のままなら
+			// OS がこの依頼を受け付けていないことになる。
+			{
+				const auto message =
+					std::string("connectPaired: MaintainConnection set -> ") +
+					(session.MaintainConnection() ? "true" : "false") +
+					" sessionStatus=" + std::to_string(static_cast<int32_t>(session.SessionStatus())) +
+					" (sessionStatus: 0=Closed 1=Active)";
+				api.OnLogged(message, [] {}, [](auto error) {});
+			}
 			// 既にリンクがある場合は ConnectionStatusChanged が発火しない
 			// (変化イベントのため)。現在値を確認して自前で通知する。
 			if (device.ConnectionStatus() == winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus::Connected)
@@ -991,6 +1001,16 @@ namespace bluetooth_low_energy_windows
 			const auto error = FlutterError(code, message);
 			result(error);
 		}
+	}
+
+	void CentralManagerImpl::OnLinkLost(int64_t address_args)
+	{
+		// リンクに紐づくものだけ捨てる。装置とセッションは残すことで、
+		// 維持依頼(MaintainConnection)を生かしたままにする。
+		m_characteristic_value_changed_revokers.erase(address_args);
+		m_services.erase(address_args);
+		m_characteristics.erase(address_args);
+		m_descriptors.erase(address_args);
 	}
 
 	void CentralManagerImpl::OnDisconnected(int64_t address_args)
@@ -1671,11 +1691,25 @@ namespace bluetooth_low_energy_windows
 			co_await ui_thread;
 			// 切断時の後片付け(内部マップの変更)もプラットフォーム
 			// スレッドで行い、マップの変更を 1 スレッドに寄せる。
+			auto &api = m_api.value();
 			if (status == winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus::Disconnected)
 			{
-				OnDisconnected(address_args);
+				// 維持依頼(MaintainConnection)が生きているなら、装置と
+				// セッションは手放さない。手放すと依頼ごと消えて OS による
+				// 再確立が起きなくなる。リンクに紐づく GATT オブジェクトだけ
+				// 捨てる。
+				const auto it = m_sessions.find(address_args);
+				const auto maintained = it != m_sessions.end() && it->second.has_value() && it->second.value().MaintainConnection();
+				if (maintained)
+				{
+					OnLinkLost(address_args);
+					api.OnLogged("link lost: MaintainConnection=true のためセッションを保持する(OS の再確立を待つ)", [] {}, [](auto error) {});
+				}
+				else
+				{
+					OnDisconnected(address_args);
+				}
 			}
-			auto &api = m_api.value();
 			const auto peripheral_args = PeripheralArgs(address_args);
 			const auto state_args = ConnectionStatusToArgs(status);
 			api.OnConnectionStateChanged(peripheral_args, state_args, [] {}, [](auto error) {});

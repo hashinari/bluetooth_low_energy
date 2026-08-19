@@ -121,6 +121,10 @@ namespace bluetooth_low_energy_windows
 		static FlutterError GattError(const std::string &operation, const winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus &status, const winrt::Windows::Foundation::IReference<uint8_t> &protocol_error);
 
 		void OnDisconnected(int64_t address_args);
+		// リンクだけ失われ、装置とセッションは保持し続ける場合の後片付け。
+		// 維持依頼(MaintainConnection)はセッションの寿命に紐づくため、
+		// セッションを手放すと OS による再確立も止まる。
+		void OnLinkLost(int64_t address_args);
 
 		winrt::Windows::Devices::Bluetooth::BluetoothLEDevice &RetrieveDevice(int64_t address_args);
 		winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattDeviceService &RetrieveService(int64_t address_args, int64_t handle_args);
