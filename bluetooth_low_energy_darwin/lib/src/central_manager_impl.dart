@@ -99,7 +99,8 @@ final class CentralManagerImpl
   }
 
   @override
-  Future<void> connect(Peripheral peripheral) async {
+  Future<void> connect(Peripheral peripheral, {bool maintain = true}) async {
+    // maintain は未対応（受けて無視する。このパッケージは追随のみ）。
     final uuidArgs = peripheral.uuid.toArgs();
     _logger.info('connect: $uuidArgs');
     await _api.connect(uuidArgs);
@@ -110,6 +111,25 @@ final class CentralManagerImpl
     final uuidArgs = peripheral.uuid.toArgs();
     _logger.info('disconnect: $uuidArgs');
     await _api.disconnect(uuidArgs);
+  }
+
+  @override
+  Future<PairingResult> pair(
+    Peripheral peripheral, {
+    PairingProtection protection = PairingProtection.osDefault,
+  }) {
+    // 未実装（iOS/macOS には相当する口が無く、OS が自動で昇格する）。
+    throw UnsupportedError('pair is not implemented on iOS/macOS.');
+  }
+
+  @override
+  Future<void> unpair(Peripheral peripheral) {
+    throw UnsupportedError('unpair is not implemented on iOS/macOS.');
+  }
+
+  @override
+  Future<bool> isPaired(Peripheral peripheral) {
+    throw UnsupportedError('isPaired is not implemented on iOS/macOS.');
   }
 
   @override
@@ -141,7 +161,11 @@ final class CentralManagerImpl
   }
 
   @override
-  Future<List<GATTService>> discoverGATT(Peripheral peripheral) async {
+  Future<List<GATTService>> discoverGATT(
+    Peripheral peripheral, {
+    // キャッシュは OS が管理するため、指定に関わらず OS の規定で動く。
+    bool cached = false,
+  }) async {
     // 发现 GATT 服务
     final uuidArgs = peripheral.uuid.toArgs();
     final servicesArgs = await _discoverServices(uuidArgs);

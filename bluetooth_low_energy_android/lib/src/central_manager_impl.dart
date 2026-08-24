@@ -121,7 +121,8 @@ final class CentralManagerImpl
   }
 
   @override
-  Future<void> connect(Peripheral peripheral) async {
+  Future<void> connect(Peripheral peripheral, {bool maintain = true}) async {
+    // maintain は未対応（受けて無視する。このパッケージは追随のみ）。
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }
@@ -138,6 +139,25 @@ final class CentralManagerImpl
     final addressArgs = peripheral.address;
     _logger.info('disconnect: $addressArgs');
     await _api.disconnect(addressArgs);
+  }
+
+  @override
+  Future<PairingResult> pair(
+    Peripheral peripheral, {
+    PairingProtection protection = PairingProtection.osDefault,
+  }) {
+    // 未実装（不可ではない。Android にも相当する口はある）。
+    throw UnsupportedError('pair is not implemented on Android.');
+  }
+
+  @override
+  Future<void> unpair(Peripheral peripheral) {
+    throw UnsupportedError('unpair is not implemented on Android.');
+  }
+
+  @override
+  Future<bool> isPaired(Peripheral peripheral) {
+    throw UnsupportedError('isPaired is not implemented on Android.');
   }
 
   @override
@@ -178,7 +198,11 @@ final class CentralManagerImpl
   }
 
   @override
-  Future<List<GATTService>> discoverGATT(Peripheral peripheral) async {
+  Future<List<GATTService>> discoverGATT(
+    Peripheral peripheral, {
+    // キャッシュは OS が管理するため、指定に関わらず OS の規定で動く。
+    bool cached = false,
+  }) async {
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }

@@ -130,7 +130,8 @@ final class CentralManagerImpl implements CentralManager {
   }
 
   @override
-  Future<void> connect(Peripheral peripheral) async {
+  Future<void> connect(Peripheral peripheral, {bool maintain = true}) async {
+    // maintain は未対応（受けて無視する。このパッケージは追随のみ）。
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }
@@ -149,6 +150,25 @@ final class CentralManagerImpl implements CentralManager {
     final blueZAddress = blueZDevice.address;
     logger.info('disconnect: $blueZAddress');
     await blueZDevice.disconnect();
+  }
+
+  @override
+  Future<PairingResult> pair(
+    Peripheral peripheral, {
+    PairingProtection protection = PairingProtection.osDefault,
+  }) {
+    // 未実装（不可ではない。Linux にも相当する口はある）。
+    throw UnsupportedError('pair is not implemented on Linux.');
+  }
+
+  @override
+  Future<void> unpair(Peripheral peripheral) {
+    throw UnsupportedError('unpair is not implemented on Linux.');
+  }
+
+  @override
+  Future<bool> isPaired(Peripheral peripheral) {
+    throw UnsupportedError('isPaired is not implemented on Linux.');
   }
 
   @override
@@ -191,7 +211,11 @@ final class CentralManagerImpl implements CentralManager {
   }
 
   @override
-  Future<List<GATTService>> discoverGATT(Peripheral peripheral) async {
+  Future<List<GATTService>> discoverGATT(
+    Peripheral peripheral, {
+    // キャッシュは OS が管理するため、指定に関わらず OS の規定で動く。
+    bool cached = false,
+  }) async {
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }

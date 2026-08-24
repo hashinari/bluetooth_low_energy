@@ -25,6 +25,49 @@ enum AdvertisementTypeArgs {
 
 enum ConnectionStateArgs { disconnected, connected }
 
+/// ネイティブログの段。Dart 側 logger の段付けに対応する。
+enum LogLevelArgs { severe, info, fine, finer }
+
+/// Windows の `DevicePairingProtectionLevel` をそのまま写したもの。
+///
+/// pair で要求する保護レベル。装置側のセキュリティ要求(暗号化必須の
+/// GATT 等)に合わせてセントラル側からも同じ水準を要求するための口。
+/// `defaultLevel` は OS に適切なレベルを選ばせる。
+enum DevicePairingProtectionLevelArgs {
+  defaultLevel,
+  none,
+  encryption,
+  encryptionAndAuthentication,
+}
+
+/// Windows の `DevicePairingResultStatus` をそのまま写したもの。
+///
+/// 文字列へ潰さず列挙で返すことで、呼び出し側が
+/// 「利用者がキャンセルした」「認証がタイムアウトした」「拒否された」を
+/// 区別できる。
+enum DevicePairingResultStatusArgs {
+  paired,
+  notReadyToPair,
+  notPaired,
+  alreadyPaired,
+  connectionRejected,
+  tooManyConnections,
+  hardwareFailure,
+  authenticationTimeout,
+  authenticationNotAllowed,
+  authenticationFailure,
+  noSupportedProfiles,
+  protectionLevelCouldNotBeMet,
+  accessDenied,
+  invalidCeremonyData,
+  pairingCanceled,
+  operationAlreadyInProgress,
+  requiredHandlerNotRegistered,
+  rejectedByHandler,
+  remoteDeviceHasAssociation,
+  failed,
+}
+
 enum GATTCharacteristicPropertyArgs {
   read,
   write,
@@ -92,6 +135,7 @@ class CentralArgs {
 
   CentralArgs(this.addressArgs);
 }
+
 
 class PeripheralArgs {
   final int addressArgs;
@@ -217,8 +261,21 @@ abstract class CentralManagerHostApi {
   BluetoothLowEnergyStateArgs getState();
   void startDiscovery(List<String> serviceUUIDsArgs);
   void stopDiscovery();
+  /// 接続する。**保護されていない GATT DB に届く状態にして返る。**
+  ///
+  /// [maintainArgs] は維持の指定。維持を先に立ててから、uncached のサービス
+  /// 探索を引き金にリンクを確立する。探索の結果は返さない。
+  ///
+  /// 失敗は FlutterError の code で分類して返す:
+  /// - `DeviceNotFound` — OS が装置を見つけられない
+  /// - `LinkFailed` — リンクが立たない
+  /// - `GattUnreachable` — リンクは立ったが GATT に届かない
+  /// - `PairingMismatch` — GATT に届かず、OS に記録が残っている
+  ///   （記録と相手の鍵の食い違い。復旧は unpair）
+  ///
+  /// details には status と、あれば protocolError（ATT コード）が入る。
   @async
-  void connect(int addressArgs);
+  void connect(int addressArgs, bool maintainArgs);
   void disconnect(int addressArgs);
   int getMTU(int addressArgs);
   @async
@@ -260,6 +317,7 @@ abstract class CentralManagerHostApi {
     int handleArgs,
     GATTCharacteristicNotifyStateArgs stateArgs,
   );
+
   @async
   Uint8List readDescriptor(
     int addressArgs,
@@ -268,6 +326,40 @@ abstract class CentralManagerHostApi {
   );
   @async
   void writeDescriptor(int addressArgs, int handleArgs, Uint8List valueArgs);
+
+  /// ペアリング(暗号化リンクの確立)を開始し、結果が出るまで待つ。
+  ///
+  /// 保護された属性は、リンクが暗号化されていないと読み書きできない。
+  /// ボンディングしない装置では鍵が保存されないため、**接続ごとに**
+  /// これを済ませてから初期読み出しへ進む必要がある。
+  ///
+  /// この経路ではダイアログは出ない。PairingRequested ハンドラを登録して
+  /// ConfirmOnly を Accept() で受理するためである(登録しないと
+  /// RequiredHandlerNotRegistered / RejectedByHandler で失敗する)。
+  ///
+  /// 失敗を例外にせず結果として返すので、キャンセル・タイムアウト・拒否を
+  /// 呼び出し側で区別できる。
+  ///
+  /// [protectionLevelArgs] は要求する保護レベル。装置側のセキュリティ要求に
+  /// 合わせて指定する(未ペアリング機器の `Pairing().ProtectionLevel()` は
+  /// 「現在の水準 = None」を返すだけで要求水準ではないため、ここで明示する)。
+  @async
+  DevicePairingResultStatusArgs pair(
+    int addressArgs,
+    DevicePairingProtectionLevelArgs protectionLevelArgs,
+  );
+
+  /// OS が保持しているペアリング(関連付け)を解除する。接続は不要。
+  @async
+  void unpair(int addressArgs);
+
+  /// OS がこの装置をペアリング済みとみなしているか。接続は不要。
+  ///
+  /// WinRT はプラットフォームスレッド(STA)でのブロック待ちを禁じているため、
+  /// 同期メソッドにはできない(`.get()` が `!is_sta_thread()` で落ちる)。
+  @async
+  bool isPaired(int addressArgs);
+
 }
 
 @FlutterApi()
@@ -290,6 +382,13 @@ abstract class CentralManagerFlutterApi {
     GATTCharacteristicArgs characteristicArgs,
     Uint8List valueArgs,
   );
+
+  /// ネイティブ層のログ。Dart 側の logger へレベル付きで中継する。
+  ///
+  /// ネイティブには独自のログ機構が無いため、ここで Dart 側と同じ段付け
+  /// (severe=失敗 / info=ライフサイクル / fine=操作単位 / finer=イベント毎)
+  /// に合流させる。
+  void onLogged(LogLevelArgs levelArgs, String messageArgs);
 }
 
 @HostApi()

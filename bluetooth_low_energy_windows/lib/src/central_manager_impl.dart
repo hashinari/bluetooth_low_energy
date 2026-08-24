@@ -1,14 +1,23 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart' show PlatformException;
+
 import 'package:bluetooth_low_energy_platform_interface/bluetooth_low_energy_platform_interface.dart';
 import 'package:logging/logging.dart';
 
 import 'api.dart';
+import 'pairing.dart';
 import 'api.g.dart';
 import 'gatt_impl.dart';
 import 'peripheral_impl.dart';
 
+/// ログの段付け(呼び出し側のログレベル設定が意味を持つように):
+///   severe … 失敗のみ
+///   info   … ライフサイクル(スキャン開始/停止・接続/切断・ペアリング・
+///            MTU)。頻度は操作回数に比例し、洪水しない
+///   fine   … GATT 操作単位(read/write/subscribe。値のダンプは載せない)
+///   finer  … イベント毎すべて(広告 1 件・通知 1 件・値ダンプ・診断)
 Logger get _logger => Logger('CentralManager');
 
 final class DiscoveryArgs {
@@ -111,13 +120,16 @@ final class CentralManagerImpl
   }
 
   @override
-  Future<void> connect(Peripheral peripheral) async {
+  Future<void> connect(Peripheral peripheral, {bool maintain = true}) async {
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }
     final addressArgs = peripheral.address;
-    _logger.info('connect: $addressArgs');
-    await _api.connect(addressArgs);
+    _logger.info('connect: $addressArgs (maintain: $maintain)');
+    // 保護されていない GATT DB に届く状態にして返る。失敗は理由付き
+    // ([BluetoothLowEnergyException]) — リンクが立たないのか、リンクは
+    // 立ったが GATT に届かないのか、後者で OS に記録が残っているのか。
+    await _guard(() => _api.connect(addressArgs, maintain));
   }
 
   @override
@@ -156,14 +168,17 @@ final class CentralManagerImpl
   }
 
   @override
-  Future<List<GATTService>> discoverGATT(Peripheral peripheral) async {
+  Future<List<GATTService>> discoverGATT(
+    Peripheral peripheral, {
+    bool cached = false,
+  }) async {
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }
     final addressArgs = peripheral.address;
-    final servicesArgs = await _getServices(
-      addressArgs,
-      CacheModeArgs.uncached,
+    final modeArgs = cached ? CacheModeArgs.cached : CacheModeArgs.uncached;
+    final servicesArgs = await _guard(
+      () => _getServices(addressArgs, modeArgs),
     );
     final services = servicesArgs.map((args) => args.toService()).toList();
     return services;
@@ -181,11 +196,9 @@ final class CentralManagerImpl
     final addressArgs = peripheral.address;
     final handleArgs = characteristic.handle;
     const modeArgs = CacheModeArgs.uncached;
-    _logger.info('readCharacteristic: $addressArgs.$handleArgs - $modeArgs');
-    final value = await _api.readCharacteristic(
-      addressArgs,
-      handleArgs,
-      modeArgs,
+    _logger.fine('readCharacteristic: $addressArgs.$handleArgs - $modeArgs');
+    final value = await _guard(
+      () => _api.readCharacteristic(addressArgs, handleArgs, modeArgs),
     );
     return value;
   }
@@ -205,14 +218,14 @@ final class CentralManagerImpl
     final handleArgs = characteristic.handle;
     final valueArgs = value;
     final typeArgs = type.toArgs();
-    _logger.info(
-      'writeCharacteristic: $addressArgs.$handleArgs - $valueArgs, $typeArgs',
+    // 値のダンプは載せない(fine は GATT 操作単位の記録。生値が要る調査は
+    // finer の通知ログ側で行う)。
+    _logger.fine(
+      'writeCharacteristic: $addressArgs.$handleArgs - '
+      '${valueArgs.length} bytes, $typeArgs',
     );
-    await _api.writeCharacteristic(
-      addressArgs,
-      handleArgs,
-      valueArgs,
-      typeArgs,
+    await _guard(
+      () => _api.writeCharacteristic(addressArgs, handleArgs, valueArgs, typeArgs),
     );
   }
 
@@ -233,11 +246,14 @@ final class CentralManagerImpl
               ? GATTCharacteristicNotifyStateArgs.notify
               : GATTCharacteristicNotifyStateArgs.indicate
         : GATTCharacteristicNotifyStateArgs.none;
-    _logger.info(
+    _logger.fine(
       'setCharacteristicNotifyState: $addressArgs.$handleArgs - $stateArgs',
     );
-    await _api.setCharacteristicNotifyState(addressArgs, handleArgs, stateArgs);
+    await _guard(
+      () => _api.setCharacteristicNotifyState(addressArgs, handleArgs, stateArgs),
+    );
   }
+
 
   @override
   Future<Uint8List> readDescriptor(
@@ -250,8 +266,10 @@ final class CentralManagerImpl
     final addressArgs = peripheral.address;
     final handleArgs = descriptor.handle;
     const modeArgs = CacheModeArgs.uncached;
-    _logger.info('readDescriptor: $addressArgs.$handleArgs - $modeArgs');
-    final value = await _api.readDescriptor(addressArgs, handleArgs, modeArgs);
+    _logger.fine('readDescriptor: $addressArgs.$handleArgs - $modeArgs');
+    final value = await _guard(
+      () => _api.readDescriptor(addressArgs, handleArgs, modeArgs),
+    );
     return value;
   }
 
@@ -267,8 +285,64 @@ final class CentralManagerImpl
     final addressArgs = peripheral.address;
     final handleArgs = descriptor.handle;
     final valueArgs = value;
-    _logger.info('writeDescriptor: $addressArgs.$handleArgs - $valueArgs');
-    await _api.writeDescriptor(addressArgs, handleArgs, valueArgs);
+    _logger.fine(
+      'writeDescriptor: $addressArgs.$handleArgs - ${valueArgs.length} bytes',
+    );
+    await _guard(() => _api.writeDescriptor(addressArgs, handleArgs, valueArgs));
+  }
+
+  /// ペアリング(暗号化リンクの確立)を開始し、結果が出るまで待つ。
+  ///
+  /// 保護された属性は、リンクが暗号化されていないと読み書きできない。
+  /// ボンディングしない装置では鍵が保存されないため、**接続ごとに**
+  /// これを済ませてから初期読み出しへ進む必要がある。
+  ///
+  /// デスクトップでは同意は必ずシステムダイアログで行われ、アプリからは
+  /// 抑止できない(Microsoft の文書と実測の両方で確認)。承認完了まで
+  /// この Future は解決しない(初回は利用者の操作時間がかかる)。
+  ///
+  /// 失敗は例外にせず [DevicePairingResultStatus] として返す。呼び出し側は
+  /// キャンセル・タイムアウト・拒否を区別できる。
+  ///
+  /// [protectionLevel] は要求する保護レベル。装置側のセキュリティ要求
+  /// (暗号化必須の GATT 等)に合わせて指定する。既定はライブラリとして
+  /// 中立な [DevicePairingProtectionLevel.defaultLevel](OS に選ばせる)。
+  @override
+  Future<PairingResult> pair(
+    Peripheral peripheral, {
+    PairingProtection protection = PairingProtection.osDefault,
+  }) async {
+    if (peripheral is! PeripheralImpl) {
+      throw TypeError();
+    }
+    final addressArgs = peripheral.address;
+    _logger.info('pair: $addressArgs (protection: $protection)');
+    final statusArgs = await _guard(
+      () => _api.pair(addressArgs, protection.toArgs()),
+    );
+    _logger.info('pair: $addressArgs -> $statusArgs');
+    return statusArgs.toResult();
+  }
+
+  @override
+  Future<void> unpair(Peripheral peripheral) async {
+    if (peripheral is! PeripheralImpl) {
+      throw TypeError();
+    }
+    final addressArgs = peripheral.address;
+    _logger.info('unpair: $addressArgs');
+    await _guard(() => _api.unpair(addressArgs));
+  }
+
+  @override
+  Future<bool> isPaired(Peripheral peripheral) async {
+    if (peripheral is! PeripheralImpl) {
+      throw TypeError();
+    }
+    final addressArgs = peripheral.address;
+    final paired = await _guard(() => _api.isPaired(addressArgs));
+    _logger.info('isPaired: $addressArgs -> $paired');
+    return paired;
   }
 
   @override
@@ -292,7 +366,8 @@ final class CentralManagerImpl
     AdvertisementArgs advertisementArgs,
   ) {
     final addressArgs = peripheralArgs.addressArgs;
-    _logger.info(
+    // 広告 1 件ごとに発火する(数件/秒)ため finer。
+    _logger.finer(
       'onDiscovered: $addressArgs - $rssiArgs, $timestampArgs, $typeArgs, $advertisementArgs',
     );
     if (typeArgs == AdvertisementTypeArgs.connectableDirected ||
@@ -391,7 +466,8 @@ final class CentralManagerImpl
   ) {
     final addressArgs = peripheralArgs.addressArgs;
     final handleArgs = characteristicArgs.handleArgs;
-    _logger.info(
+    // 通知 1 件ごとに発火する(ストリーミング中は数十件/秒)ため finer。
+    _logger.finer(
       'onCharacteristicNotified: $addressArgs.$handleArgs - $valueArgs',
     );
     final peripheral = peripheralArgs.toPeripheral();
@@ -403,6 +479,51 @@ final class CentralManagerImpl
       value,
     );
     _characteristicNotifiedController.add(eventArgs);
+  }
+
+  @override
+  void onLogged(LogLevelArgs levelArgs, String messageArgs) {
+    // ネイティブ層のログの中継。段付けは Dart 側と共通(冒頭のコメント)。
+    final level = switch (levelArgs) {
+      LogLevelArgs.severe => Level.SEVERE,
+      LogLevelArgs.info => Level.INFO,
+      LogLevelArgs.fine => Level.FINE,
+      LogLevelArgs.finer => Level.FINER,
+    };
+    _logger.log(level, '[native] $messageArgs');
+  }
+
+  /// pigeon 経由の失敗([PlatformException])を理由付きの
+  /// [BluetoothLowEnergyException] に写す。
+  ///
+  /// 理由の分類はネイティブが code で返し、ATT のエラーコードは details の
+  /// protocolError が持つ(無ければ null)。
+  Future<T> _guard<T>(Future<T> Function() body) async {
+    try {
+      return await body();
+    } on PlatformException catch (e) {
+      final details = e.details;
+      final att = details is Map ? details['protocolError'] as int? : null;
+      final reason = switch (e.code) {
+        'DeviceNotFound' => BluetoothLowEnergyErrorReason.deviceNotFound,
+        'LinkFailed' => BluetoothLowEnergyErrorReason.linkFailed,
+        'GattUnreachable' ||
+        'Unreachable' =>
+          BluetoothLowEnergyErrorReason.gattUnreachable,
+        'PairingMismatch' => BluetoothLowEnergyErrorReason.pairingMismatch,
+        'ProtocolError' when att == 0x05 || att == 0x0f =>
+          BluetoothLowEnergyErrorReason.protectionRequired,
+        'ProtocolError' ||
+        'AccessDenied' =>
+          BluetoothLowEnergyErrorReason.rejected,
+        _ => BluetoothLowEnergyErrorReason.unknown,
+      };
+      throw BluetoothLowEnergyException(
+        reason,
+        e.message ?? e.code,
+        attCode: att,
+      );
+    }
   }
 
   Future<void> _initialize() async {
@@ -525,7 +646,7 @@ final class CentralManagerImpl
     final oldAddressArgs = oldDiscoveryArgs.peripheralArgs.addressArgs;
     final newAddressArgs = newDiscoveryArgs.peripheralArgs.addressArgs;
     if (oldAddressArgs != newAddressArgs) {
-      _logger.fine(
+      _logger.finer(
         'ignored by different addressArgs $oldAddressArgs, $newAddressArgs',
       );
       return true;
@@ -534,14 +655,14 @@ final class CentralManagerImpl
         .toRadixString(16)
         .padLeft(12, '0');
     if (oldDiscoveryArgs.typeArgs == newDiscoveryArgs.typeArgs) {
-      _logger.fine(
+      _logger.finer(
         'ignored by same typeArgs $address: ${oldDiscoveryArgs.typeArgs}:${oldDiscoveryArgs.timestampArgs}, ${newDiscoveryArgs.typeArgs}:${newDiscoveryArgs.timestampArgs}',
       );
       return true;
     }
     if (oldDiscoveryArgs.typeArgs != AdvertisementTypeArgs.scanResponse &&
         newDiscoveryArgs.typeArgs != AdvertisementTypeArgs.scanResponse) {
-      _logger.fine(
+      _logger.finer(
         'ignored by wrong typeArgs $address:  ${oldDiscoveryArgs.typeArgs}:${oldDiscoveryArgs.timestampArgs}, ${newDiscoveryArgs.typeArgs}:${newDiscoveryArgs.timestampArgs}',
       );
       return true;
@@ -552,7 +673,7 @@ final class CentralManagerImpl
         : oldDiscoveryArgs.timestampArgs - newDiscoveryArgs.timestampArgs;
     final ignored = interval < 0 || interval > 1000;
     if (ignored) {
-      _logger.fine(
+      _logger.finer(
         'ignored by wrong timestampArgs $address: $interval, ${oldDiscoveryArgs.typeArgs}:${oldDiscoveryArgs.timestampArgs}, ${newDiscoveryArgs.typeArgs}:${newDiscoveryArgs.timestampArgs}',
       );
     }

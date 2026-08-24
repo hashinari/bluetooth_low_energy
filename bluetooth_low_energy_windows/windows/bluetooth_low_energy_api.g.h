@@ -81,6 +81,54 @@ enum class ConnectionStateArgs {
   kConnected = 1
 };
 
+// ネイティブログの段。Dart 側 logger の段付けに対応する。
+enum class LogLevelArgs {
+  kSevere = 0,
+  kInfo = 1,
+  kFine = 2,
+  kFiner = 3
+};
+
+// Windows の `DevicePairingProtectionLevel` をそのまま写したもの。
+//
+// pair で要求する保護レベル。装置側のセキュリティ要求(暗号化必須の
+// GATT 等)に合わせてセントラル側からも同じ水準を要求するための口。
+// `defaultLevel` は OS に適切なレベルを選ばせる。
+enum class DevicePairingProtectionLevelArgs {
+  kDefaultLevel = 0,
+  kNone = 1,
+  kEncryption = 2,
+  kEncryptionAndAuthentication = 3
+};
+
+// Windows の `DevicePairingResultStatus` をそのまま写したもの。
+//
+// 文字列へ潰さず列挙で返すことで、呼び出し側が
+// 「利用者がキャンセルした」「認証がタイムアウトした」「拒否された」を
+// 区別できる。
+enum class DevicePairingResultStatusArgs {
+  kPaired = 0,
+  kNotReadyToPair = 1,
+  kNotPaired = 2,
+  kAlreadyPaired = 3,
+  kConnectionRejected = 4,
+  kTooManyConnections = 5,
+  kHardwareFailure = 6,
+  kAuthenticationTimeout = 7,
+  kAuthenticationNotAllowed = 8,
+  kAuthenticationFailure = 9,
+  kNoSupportedProfiles = 10,
+  kProtectionLevelCouldNotBeMet = 11,
+  kAccessDenied = 12,
+  kInvalidCeremonyData = 13,
+  kPairingCanceled = 14,
+  kOperationAlreadyInProgress = 15,
+  kRequiredHandlerNotRegistered = 16,
+  kRejectedByHandler = 17,
+  kRemoteDeviceHasAssociation = 18,
+  kFailed = 19
+};
+
 enum class GATTCharacteristicPropertyArgs {
   kRead = 0,
   kWrite = 1,
@@ -602,8 +650,22 @@ class CentralManagerHostApi {
   virtual ErrorOr<BluetoothLowEnergyStateArgs> GetState() = 0;
   virtual std::optional<FlutterError> StartDiscovery(const flutter::EncodableList& service_u_u_i_ds_args) = 0;
   virtual std::optional<FlutterError> StopDiscovery() = 0;
+  // 接続する。**保護されていない GATT DB に届く状態にして返る。**
+  //
+  // [maintainArgs] は維持の指定。維持を先に立ててから、uncached のサービス
+  // 探索を引き金にリンクを確立する。探索の結果は返さない。
+  //
+  // 失敗は FlutterError の code で分類して返す:
+  // - `DeviceNotFound` — OS が装置を見つけられない
+  // - `LinkFailed` — リンクが立たない
+  // - `GattUnreachable` — リンクは立ったが GATT に届かない
+  // - `PairingMismatch` — GATT に届かず、OS に記録が残っている
+  //   （記録と相手の鍵の食い違い。復旧は unpair）
+  //
+  // details には status と、あれば protocolError（ATT コード）が入る。
   virtual void Connect(
     int64_t address_args,
+    bool maintain_args,
     std::function<void(std::optional<FlutterError> reply)> result) = 0;
   virtual std::optional<FlutterError> Disconnect(int64_t address_args) = 0;
   virtual ErrorOr<int64_t> GetMTU(int64_t address_args) = 0;
@@ -652,6 +714,37 @@ class CentralManagerHostApi {
     int64_t handle_args,
     const std::vector<uint8_t>& value_args,
     std::function<void(std::optional<FlutterError> reply)> result) = 0;
+  // ペアリング(暗号化リンクの確立)を開始し、結果が出るまで待つ。
+  //
+  // 保護された属性は、リンクが暗号化されていないと読み書きできない。
+  // ボンディングしない装置では鍵が保存されないため、**接続ごとに**
+  // これを済ませてから初期読み出しへ進む必要がある。
+  //
+  // この経路ではダイアログは出ない。PairingRequested ハンドラを登録して
+  // ConfirmOnly を Accept() で受理するためである(登録しないと
+  // RequiredHandlerNotRegistered / RejectedByHandler で失敗する)。
+  //
+  // 失敗を例外にせず結果として返すので、キャンセル・タイムアウト・拒否を
+  // 呼び出し側で区別できる。
+  //
+  // [protectionLevelArgs] は要求する保護レベル。装置側のセキュリティ要求に
+  // 合わせて指定する(未ペアリング機器の `Pairing().ProtectionLevel()` は
+  // 「現在の水準 = None」を返すだけで要求水準ではないため、ここで明示する)。
+  virtual void Pair(
+    int64_t address_args,
+    const DevicePairingProtectionLevelArgs& protection_level_args,
+    std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result) = 0;
+  // OS が保持しているペアリング(関連付け)を解除する。接続は不要。
+  virtual void Unpair(
+    int64_t address_args,
+    std::function<void(std::optional<FlutterError> reply)> result) = 0;
+  // OS がこの装置をペアリング済みとみなしているか。接続は不要。
+  //
+  // WinRT はプラットフォームスレッド(STA)でのブロック待ちを禁じているため、
+  // 同期メソッドにはできない(`.get()` が `!is_sta_thread()` で落ちる)。
+  virtual void IsPaired(
+    int64_t address_args,
+    std::function<void(ErrorOr<bool> reply)> result) = 0;
 
   // The codec used by CentralManagerHostApi.
   static const flutter::StandardMessageCodec& GetCodec();
@@ -702,6 +795,16 @@ class CentralManagerFlutterApi {
     const PeripheralArgs& peripheral_args,
     const GATTCharacteristicArgs& characteristic_args,
     const std::vector<uint8_t>& value_args,
+    std::function<void(void)>&& on_success,
+    std::function<void(const FlutterError&)>&& on_error);
+  // ネイティブ層のログ。Dart 側の logger へレベル付きで中継する。
+  //
+  // ネイティブには独自のログ機構が無いため、ここで Dart 側と同じ段付け
+  // (severe=失敗 / info=ライフサイクル / fine=操作単位 / finer=イベント毎)
+  // に合流させる。
+  void OnLogged(
+    const LogLevelArgs& level_args,
+    const std::string& message_args,
     std::function<void(void)>&& on_success,
     std::function<void(const FlutterError&)>&& on_error);
  private:
