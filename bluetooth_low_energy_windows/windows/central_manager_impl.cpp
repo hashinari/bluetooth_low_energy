@@ -304,6 +304,20 @@ namespace bluetooth_low_energy_windows
 				// リンクが依頼の前に落ちうる。
 				session.MaintainConnection(true);
 			}
+			// 観測のみ(挙動は変えない)。散発の接続失敗と突き合わせるため、
+			// 引き金を引く直前の装置オブジェクトの見え方を残す。
+			// - addressType: OS が装置をどの種別で見ているか。Unspecified の
+			//   ままなら種別を確定できずに接続しにいっている
+			// - connectedBefore: 引き金の前からリンクがあると OS が思っているか
+			const auto address_type = device.BluetoothAddressType();
+			const auto address_type_name =
+				address_type == winrt::Windows::Devices::Bluetooth::BluetoothAddressType::Public	  ? std::string("Public")
+				: address_type == winrt::Windows::Devices::Bluetooth::BluetoothAddressType::Random ? std::string("Random")
+																								   : std::string("Unspecified");
+			const auto connected_before = device.ConnectionStatus() == winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus::Connected;
+			Log(LogLevelArgs::kInfo,
+				"connect: addressType=" + address_type_name +
+					" connectedBefore=" + (connected_before ? std::string("true") : std::string("false")));
 			// 装置オブジェクトを作っただけでは接続しない。uncached のサービス
 			// 探索を引き金にリンクを確立する。**結果は使わない** ── サービスは
 			// discoverGATT が取る。
@@ -357,6 +371,8 @@ namespace bluetooth_low_energy_windows
 					{flutter::EncodableValue("status"), flutter::EncodableValue(static_cast<int32_t>(status))},
 					{flutter::EncodableValue("linkUp"), flutter::EncodableValue(link_up)},
 					{flutter::EncodableValue("paired"), flutter::EncodableValue(paired)},
+					{flutter::EncodableValue("addressType"), flutter::EncodableValue(address_type_name)},
+					{flutter::EncodableValue("connectedBefore"), flutter::EncodableValue(connected_before)},
 				};
 				const auto protocol_error = r.ProtocolError();
 				if (protocol_error != nullptr)
