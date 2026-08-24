@@ -95,36 +95,9 @@ namespace bluetooth_low_energy_windows
 		}
 	}
 
-	void CentralManagerImpl::Connect(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
+	void CentralManagerImpl::Connect(int64_t address_args, bool maintain_args, std::function<void(std::optional<FlutterError> reply)> result)
 	{
-		ConnectAsync(address_args, std::move(result));
-	}
-
-			void CentralManagerImpl::ConnectMaintained(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
-	{
-		ConnectMaintainedAsync(address_args, std::move(result));
-	}
-
-	std::optional<FlutterError> CentralManagerImpl::SetMaintainConnection(int64_t address_args, bool enable_args)
-	{
-		try
-		{
-			const auto it = m_sessions.find(address_args);
-			if (it == m_sessions.end() || !it->second.has_value())
-			{
-				return FlutterError("IllegalState", "No session for this device (not connected).");
-			}
-			it->second.value().MaintainConnection(enable_args);
-			return std::nullopt;
-		}
-		catch (const winrt::hresult_error &ex)
-		{
-			return FlutterError("winrt::hresult_error", winrt::to_string(ex.message()));
-		}
-		catch (const std::exception &ex)
-		{
-			return FlutterError("std::exception", ex.what());
-		}
+		ConnectAsync(address_args, maintain_args, std::move(result));
 	}
 
 	std::optional<FlutterError> CentralManagerImpl::Disconnect(int64_t address_args)
@@ -303,7 +276,7 @@ namespace bluetooth_low_energy_windows
 		}
 	}
 
-	winrt::fire_and_forget CentralManagerImpl::ConnectAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
+	winrt::fire_and_forget CentralManagerImpl::ConnectAsync(int64_t address_args, bool maintain_args, std::function<void(std::optional<FlutterError> reply)> result)
 	{
 		try
 		{
@@ -312,42 +285,86 @@ namespace bluetooth_low_energy_windows
 			if (device == nullptr)
 			{
 				// 未ペアリングかつシステムキャッシュに無い装置では null が
-				// 返る(公式文書)。GATT の Unreachable と区別できるよう
-				// 明示エラーにする。
+				// 返る(公式文書)。他の失敗と区別できるよう明示エラーにする。
 				const auto error = FlutterError("DeviceNotFound", "FromBluetoothAddressAsync returned null (device not in system cache)");
 				result(error);
 				co_return;
 			}
 			const auto id = device.BluetoothDeviceId();
 			const auto &session = co_await winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattSession::FromDeviceIdAsync(id);
-			// Creating a BluetoothLEDevice object by calling this method alone doesn't (necessarily) initiate a
-			// connection. To initiate a connection, set GattSession.MaintainConnection to true, or call an
-			// uncached service discovery method on BluetoothLEDevice, or perform a read/write operation against
-			// the device.
-			// See：https://learn.microsoft.com/en-us/windows/uwp/devices-sensors/gatt-client#connecting-to-the-device
+			if (maintain_args)
+			{
+				if (!session.CanMaintainConnection())
+				{
+					const auto error = FlutterError("LinkFailed", "GattSession.CanMaintainConnection is false.");
+					result(error);
+					co_return;
+				}
+				// 維持は引き金より先に立てる。逆にすると、引き金で張った
+				// リンクが依頼の前に落ちうる。
+				session.MaintainConnection(true);
+			}
+			// 装置オブジェクトを作っただけでは接続しない。uncached のサービス
+			// 探索を引き金にリンクを確立する。**結果は使わない** ── サービスは
+			// discoverGATT が取る。
+			// See: https://learn.microsoft.com/en-us/windows/uwp/devices-sensors/gatt-client#connecting-to-the-device
 			const auto &r = co_await device.GetGattServicesAsync(winrt::Windows::Devices::Bluetooth::BluetoothCacheMode::Uncached);
 			const auto status = r.Status();
 			if (status != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success)
 			{
-				// 調査用: Windows がどのアドレス種別で接続を試みたかを
-				// エラーメッセージに添える(未ペアリング時に Unreachable に
-				// なる問題の切り分け ── 種別を取り違えていると相手が応答
-				// せず 7 秒でタイムアウトする)。
-				std::string operation = "Connect(addressType=";
-				switch (device.BluetoothAddressType())
+				// 失敗を分類する。リンクが立ったか・OS に記録があるかで、
+				// 呼び出し側の次の手が変わる。
+				const auto link_up = device.ConnectionStatus() == winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus::Connected;
+				auto paired = false;
+				try
 				{
-				case winrt::Windows::Devices::Bluetooth::BluetoothAddressType::Public:
-					operation += "Public";
-					break;
-				case winrt::Windows::Devices::Bluetooth::BluetoothAddressType::Random:
-					operation += "Random";
-					break;
-				default:
-					operation += "Unspecified";
-					break;
+					paired = device.DeviceInformation().Pairing().IsPaired();
 				}
-				operation += ")";
-				result(GattError(operation, status, r.ProtocolError()));
+				catch (...)
+				{
+					// 記録の照会に失敗しても分類を落とすだけで、失敗自体は返す。
+				}
+				if (maintain_args)
+				{
+					try
+					{
+						session.MaintainConnection(false);
+					}
+					catch (...)
+					{
+					}
+				}
+				std::string code;
+				std::string message;
+				if (!link_up)
+				{
+					code = "LinkFailed";
+					message = "Connect failed: link was not established";
+				}
+				else if (paired)
+				{
+					// リンクは立つのに GATT に届かず、OS に記録がある。記録と
+					// 相手の鍵が食い違っている状態(実測で 8/8 再現)。復旧は unpair。
+					code = "PairingMismatch";
+					message = "Connect failed: link established but GATT is unreachable, and an OS pairing record exists (stale record). Recover with unpair";
+				}
+				else
+				{
+					code = "GattUnreachable";
+					message = "Connect failed: link established but GATT is unreachable";
+				}
+				auto details = flutter::EncodableMap{
+					{flutter::EncodableValue("status"), flutter::EncodableValue(static_cast<int32_t>(status))},
+					{flutter::EncodableValue("linkUp"), flutter::EncodableValue(link_up)},
+					{flutter::EncodableValue("paired"), flutter::EncodableValue(paired)},
+				};
+				const auto protocol_error = r.ProtocolError();
+				if (protocol_error != nullptr)
+				{
+					const auto att = protocol_error.Value();
+					details.insert({flutter::EncodableValue("protocolError"), flutter::EncodableValue(static_cast<int32_t>(att))});
+				}
+				result(FlutterError(code, message, flutter::EncodableValue(details)));
 				co_return;
 			}
 			const auto peripheral_args = PeripheralArgs(address_args);
@@ -379,83 +396,6 @@ namespace bluetooth_low_energy_windows
 				});
 			m_devices[address_args] = device;
 			m_sessions[address_args] = session;
-			result(std::nullopt);
-		}
-		catch (const winrt::hresult_error &ex)
-		{
-			const auto code = "winrt::hresult_error";
-			const auto winrt_message = ex.message();
-			const auto message = winrt::to_string(winrt_message);
-			const auto error = FlutterError(code, message);
-			result(error);
-		}
-		catch (const std::exception &ex)
-		{
-			const auto code = "std::exception";
-			const auto message = ex.what();
-			const auto error = FlutterError(code, message);
-			result(error);
-		}
-	}
-
-			winrt::fire_and_forget CentralManagerImpl::ConnectMaintainedAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
-	{
-		try
-		{
-			const auto address = static_cast<uint64_t>(address_args);
-			const auto &device = co_await winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromBluetoothAddressAsync(address);
-			if (device == nullptr)
-			{
-				// 未ペアリングかつシステムキャッシュに無い装置では null が返る
-				// (公式文書)。ペアリング済み装置は OS に永続登録されている
-				// ため、ここで null になることはない。
-				const auto error = FlutterError("DeviceNotFound", "FromBluetoothAddressAsync returned null (device not in system cache)");
-				result(error);
-				co_return;
-			}
-			const auto id = device.BluetoothDeviceId();
-			const auto &session = co_await winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattSession::FromDeviceIdAsync(id);
-			const auto can_maintain = session.CanMaintainConnection();
-			if (!can_maintain)
-			{
-				const auto error = FlutterError("CannotMaintainConnection", "GattSession.CanMaintainConnection is false.");
-				result(error);
-				co_return;
-			}
-			const auto peripheral_args = PeripheralArgs(address_args);
-			// イベント送出・ハンドラ登録・内部マップの更新をプラットフォーム
-			// スレッドで行うため、ここで一度戻す(ConnectAsync と同じ手順)。
-			const auto ui_thread = m_ui_thread;
-			co_await ui_thread;
-			// MaintainConnection を立てる前にハンドラを登録し、確立イベント
-			// (ConnectionStatusChanged → onConnectionStateChanged)を取り
-			// 逃さないようにする。確立・切断の通知は connect と同じ経路。
-			m_device_connection_status_changed_revokers[address_args] = device.ConnectionStatusChanged(
-				winrt::auto_revoke,
-				[this, address_args](winrt::Windows::Devices::Bluetooth::BluetoothLEDevice device, auto obj)
-				{
-					const auto status = device.ConnectionStatus();
-					HandleConnectionStatusChanged(address_args, status);
-				});
-			m_session_max_pdu_size_changed_revokers[address_args] = session.MaxPduSizeChanged(
-				winrt::auto_revoke,
-				[this, peripheral_args](winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattSession session, auto obj)
-				{
-					const auto mtu = session.MaxPduSize();
-					const auto mtu_args = static_cast<int64_t>(mtu);
-					NotifyMTUChanged(peripheral_args, mtu_args);
-				});
-			m_devices[address_args] = device;
-			m_sessions[address_args] = session;
-			session.MaintainConnection(true);
-			auto &api = m_api.value();
-			// 既にリンクがある場合は ConnectionStatusChanged が発火しない
-			// (変化イベントのため)。現在値を確認して自前で通知する。
-			if (device.ConnectionStatus() == winrt::Windows::Devices::Bluetooth::BluetoothConnectionStatus::Connected)
-			{
-				const auto state_args = ConnectionStateArgs::kConnected;
-				api.OnConnectionStateChanged(peripheral_args, state_args, [] {}, [](auto error) {});
-			}
 			result(std::nullopt);
 		}
 		catch (const winrt::hresult_error &ex)
@@ -1161,50 +1101,10 @@ namespace bluetooth_low_energy_windows
 	void CentralManagerImpl::OnPairingRequested(const winrt::Windows::Devices::Enumeration::DeviceInformationCustomPairing &sender, const winrt::Windows::Devices::Enumeration::DevicePairingRequestedEventArgs &args)
 	{
 		const auto kind = args.PairingKind();
-		// 調査用: 儀式が実際に発火したことを記録する(PairAsync が完了後に
-		// まとめて診断ログへ出す)。
-		m_pairing_requested_kind.store(static_cast<int32_t>(kind));
 		// PIN の入力・表示が要るセレモニーは代行できない。OS/利用者に委ねる。
 		if (kind == winrt::Windows::Devices::Enumeration::DevicePairingKinds::ConfirmOnly)
 		{
 			args.Accept();
-		}
-	}
-
-	std::optional<FlutterError> CentralManagerImpl::SetCharacteristicProtectionLevel(int64_t address_args, int64_t handle_args, const GATTProtectionLevelArgs &level_args)
-	{
-		try
-		{
-			const auto &characteristic = RetrieveCharacteristic(address_args, handle_args);
-			using winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattProtectionLevel;
-			auto level = GattProtectionLevel::Plain;
-			switch (level_args)
-			{
-			case GATTProtectionLevelArgs::kAuthenticationRequired:
-				level = GattProtectionLevel::AuthenticationRequired;
-				break;
-			// 上流由来の綴り(entryption)をそのまま写した列挙値。
-			case GATTProtectionLevelArgs::kEntryptionRequired:
-				level = GattProtectionLevel::EncryptionRequired;
-				break;
-			case GATTProtectionLevelArgs::kEncryptionAndAuthenticationRequired:
-				level = GattProtectionLevel::EncryptionAndAuthenticationRequired;
-				break;
-			case GATTProtectionLevelArgs::kPlain:
-			default:
-				level = GattProtectionLevel::Plain;
-				break;
-			}
-			characteristic.ProtectionLevel(level);
-			return std::nullopt;
-		}
-		catch (const winrt::hresult_error &ex)
-		{
-			return FlutterError("winrt::hresult_error", winrt::to_string(ex.message()));
-		}
-		catch (const std::exception &ex)
-		{
-			return FlutterError("std::exception", ex.what());
 		}
 	}
 
@@ -1264,12 +1164,9 @@ namespace bluetooth_low_energy_windows
 			// する。かつては `pairing.ProtectionLevel()` を渡していたが、
 			// これは未ペアリング機器では「現在の水準 = None」を返すだけで
 			// 要求水準ではなく、OS の解釈が走行ごとに揺れる(Encryption に
-			// 昇格することも None のまま登録することもある)ことが診断ログで
+			// 昇格することも None のまま登録することもある)ことが実測で
 			// 確認されたため、明示指定に改めた。
 			const auto protection_level = ProtectionLevelFromArgs(protection_level_args);
-			// 調査用: 渡した保護レベル・実際に使われた保護レベル・儀式
-			// (PairingRequested)の発火有無を完了時に診断ログへ出す。
-			m_pairing_requested_kind.store(-1);
 			const auto &pair_result = co_await custom.PairAsync(
 				winrt::Windows::Devices::Enumeration::DevicePairingKinds::ConfirmOnly |
 					winrt::Windows::Devices::Enumeration::DevicePairingKinds::ProvidePin,
@@ -1278,24 +1175,13 @@ namespace bluetooth_low_energy_windows
 			// スレッド切替(co_await)前に結果値をすべて値で確定させる。
 			const auto pair_status = PairingStatusToArgs(pair_result.Status());
 			const auto used_level = pair_result.ProtectionLevelUsed();
-			const auto ceremony_kind = m_pairing_requested_kind.load();
-			// FlutterApi の呼び出しはプラットフォームスレッドからのみ可能な
-			// ため、診断ログの送出前に一度戻す(ConnectAsync と同じ手順)。
+			// 実際に使われた保護レベルは要求と食い違うことがあるため、
+			// 操作単位のログに残す。
+			Log(LogLevelArgs::kFine,
+				"pair: requested protectionLevel=" + std::to_string(static_cast<int32_t>(protection_level)) +
+					", used=" + std::to_string(static_cast<int32_t>(used_level)));
 			const auto ui_thread = m_ui_thread;
 			co_await ui_thread;
-			if (m_api.has_value())
-			{
-				const auto message =
-					"pair diagnostics: requestedProtectionLevel=" +
-					std::to_string(static_cast<int32_t>(protection_level)) +
-					" usedProtectionLevel=" +
-					std::to_string(static_cast<int32_t>(used_level)) +
-					" ceremonyKind=" + std::to_string(ceremony_kind) +
-					" (protectionLevel: 0=Default 1=None 2=Encryption "
-					"3=EncryptionAndAuthentication / ceremonyKind: -1=未発火 "
-					"1=ConfirmOnly 2=DisplayPin 4=ProvidePin 8=ConfirmPinMatch)";
-				m_api.value().OnLogged(message, [] {}, [](auto error) {});
-			}
 			result(pair_status);
 		}
 		catch (const winrt::hresult_error &ex)
@@ -1444,6 +1330,20 @@ namespace bluetooth_low_energy_windows
 	// 戻してから送る。
 	// fire_and_forget から例外が漏れると std::terminate になるため、
 	// 中継の失敗は握りつぶす(イベント通知は元々ベストエフォート)。
+
+	winrt::fire_and_forget CentralManagerImpl::Log(LogLevelArgs level_args, std::string message_args)
+	{
+		try
+		{
+			const auto ui_thread = m_ui_thread;
+			co_await ui_thread;
+			auto &api = m_api.value();
+			api.OnLogged(level_args, message_args, [] {}, [](auto error) {});
+		}
+		catch (...)
+		{
+		}
+	}
 
 	winrt::fire_and_forget CentralManagerImpl::NotifyStateChanged(BluetoothLowEnergyStateArgs state_args)
 	{

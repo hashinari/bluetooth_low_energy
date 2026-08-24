@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart' show PlatformException;
+
 import 'package:bluetooth_low_energy_platform_interface/bluetooth_low_energy_platform_interface.dart';
 import 'package:logging/logging.dart';
 
@@ -118,13 +120,16 @@ final class CentralManagerImpl
   }
 
   @override
-  Future<void> connect(Peripheral peripheral) async {
+  Future<void> connect(Peripheral peripheral, {bool maintain = true}) async {
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }
     final addressArgs = peripheral.address;
-    _logger.info('connect: $addressArgs');
-    await _api.connect(addressArgs);
+    _logger.info('connect: $addressArgs (maintain: $maintain)');
+    // 保護されていない GATT DB に届く状態にして返る。失敗は理由付き
+    // ([BluetoothLowEnergyException]) — リンクが立たないのか、リンクは
+    // 立ったが GATT に届かないのか、後者で OS に記録が残っているのか。
+    await _guard(() => _api.connect(addressArgs, maintain));
   }
 
   @override
@@ -168,9 +173,8 @@ final class CentralManagerImpl
       throw TypeError();
     }
     final addressArgs = peripheral.address;
-    final servicesArgs = await _getServices(
-      addressArgs,
-      CacheModeArgs.uncached,
+    final servicesArgs = await _guard(
+      () => _getServices(addressArgs, CacheModeArgs.uncached),
     );
     final services = servicesArgs.map((args) => args.toService()).toList();
     return services;
@@ -189,10 +193,8 @@ final class CentralManagerImpl
     final handleArgs = characteristic.handle;
     const modeArgs = CacheModeArgs.uncached;
     _logger.fine('readCharacteristic: $addressArgs.$handleArgs - $modeArgs');
-    final value = await _api.readCharacteristic(
-      addressArgs,
-      handleArgs,
-      modeArgs,
+    final value = await _guard(
+      () => _api.readCharacteristic(addressArgs, handleArgs, modeArgs),
     );
     return value;
   }
@@ -218,11 +220,8 @@ final class CentralManagerImpl
       'writeCharacteristic: $addressArgs.$handleArgs - '
       '${valueArgs.length} bytes, $typeArgs',
     );
-    await _api.writeCharacteristic(
-      addressArgs,
-      handleArgs,
-      valueArgs,
-      typeArgs,
+    await _guard(
+      () => _api.writeCharacteristic(addressArgs, handleArgs, valueArgs, typeArgs),
     );
   }
 
@@ -246,36 +245,11 @@ final class CentralManagerImpl
     _logger.fine(
       'setCharacteristicNotifyState: $addressArgs.$handleArgs - $stateArgs',
     );
-    await _api.setCharacteristicNotifyState(addressArgs, handleArgs, stateArgs);
+    await _guard(
+      () => _api.setCharacteristicNotifyState(addressArgs, handleArgs, stateArgs),
+    );
   }
 
-  /// 特性への無線通信に要求する GATT セキュリティ
-  /// (`GattCharacteristic.ProtectionLevel`)を設定する。
-  ///
-  /// 設定後にその特性へ read/write すると、スタックは要求水準を満たす
-  /// リンク(暗号化等)を操作の前提として確立しようとする。装置側の
-  /// セキュリティ要求と一致させることで、ATT エラー(0x0F 等)を起点と
-  /// した事後の再試行ではなく、OS 主導の事前確立に切り替えられる。
-  Future<void> setCharacteristicProtectionLevel(
-    Peripheral peripheral,
-    GATTCharacteristic characteristic, {
-    required GATTProtectionLevel level,
-  }) async {
-    if (peripheral is! PeripheralImpl ||
-        characteristic is! GATTCharacteristicImpl) {
-      throw TypeError();
-    }
-    final addressArgs = peripheral.address;
-    final handleArgs = characteristic.handle;
-    _logger.info(
-      'setCharacteristicProtectionLevel: $addressArgs.$handleArgs - $level',
-    );
-    await _api.setCharacteristicProtectionLevel(
-      addressArgs,
-      handleArgs,
-      level.toArgs(),
-    );
-  }
 
   @override
   Future<Uint8List> readDescriptor(
@@ -289,7 +263,9 @@ final class CentralManagerImpl
     final handleArgs = descriptor.handle;
     const modeArgs = CacheModeArgs.uncached;
     _logger.fine('readDescriptor: $addressArgs.$handleArgs - $modeArgs');
-    final value = await _api.readDescriptor(addressArgs, handleArgs, modeArgs);
+    final value = await _guard(
+      () => _api.readDescriptor(addressArgs, handleArgs, modeArgs),
+    );
     return value;
   }
 
@@ -308,7 +284,7 @@ final class CentralManagerImpl
     _logger.fine(
       'writeDescriptor: $addressArgs.$handleArgs - ${valueArgs.length} bytes',
     );
-    await _api.writeDescriptor(addressArgs, handleArgs, valueArgs);
+    await _guard(() => _api.writeDescriptor(addressArgs, handleArgs, valueArgs));
   }
 
   /// ペアリング(暗号化リンクの確立)を開始し、結果が出るまで待つ。
@@ -327,81 +303,42 @@ final class CentralManagerImpl
   /// [protectionLevel] は要求する保護レベル。装置側のセキュリティ要求
   /// (暗号化必須の GATT 等)に合わせて指定する。既定はライブラリとして
   /// 中立な [DevicePairingProtectionLevel.defaultLevel](OS に選ばせる)。
-  Future<DevicePairingResultStatus> pair(
+  @override
+  Future<PairingResult> pair(
     Peripheral peripheral, {
-    DevicePairingProtectionLevel protectionLevel =
-        DevicePairingProtectionLevel.defaultLevel,
+    PairingProtection protection = PairingProtection.osDefault,
   }) async {
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }
     final addressArgs = peripheral.address;
-    _logger.info('pair: $addressArgs (protectionLevel: $protectionLevel)');
-    final statusArgs = await _api.pair(addressArgs, protectionLevel.toArgs());
+    _logger.info('pair: $addressArgs (protection: $protection)');
+    final statusArgs = await _guard(
+      () => _api.pair(addressArgs, protection.toArgs()),
+    );
     _logger.info('pair: $addressArgs -> $statusArgs');
-    return statusArgs.toStatus();
+    return statusArgs.toResult();
   }
 
-  /// OS が保持しているペアリング(関連付け)を解除する。接続は不要。
+  @override
   Future<void> unpair(Peripheral peripheral) async {
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }
     final addressArgs = peripheral.address;
     _logger.info('unpair: $addressArgs');
-    await _api.unpair(addressArgs);
+    await _guard(() => _api.unpair(addressArgs));
   }
 
-  /// OS がこの装置をペアリング済みとみなしているか。接続は不要。
+  @override
   Future<bool> isPaired(Peripheral peripheral) async {
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }
     final addressArgs = peripheral.address;
-    final paired = await _api.isPaired(addressArgs);
+    final paired = await _guard(() => _api.isPaired(addressArgs));
     _logger.info('isPaired: $addressArgs -> $paired');
     return paired;
-  }
-  /// `GattSession.MaintainConnection` を立てて接続を開始する。
-  ///
-  /// [connect] の接続待ちは OS 内部で 7 秒固定・キャンセル不可である。
-  /// こちらは「デバイスが現れ次第つなぐ」を OS へ依頼し、リンク確立を
-  /// 待たずに返る。確立は [connectionStateChanged] の connected で通知する
-  /// ので、待ち時間の上限と中断は呼び出し側が決める。中断は [disconnect]。
-  ///
-  /// 依頼はセッションが生きている限り有効であり、接続中に維持を解除しては
-  /// ならない。Windows でリンクを保持するのは維持依頼か実行中の GATT 操作の
-  /// どちらかで、確立直後はまだ後者を持たないため、そこで解除すると OS が
-  /// リンクを解体する。解除は [disconnect] が行う。
-  ///
-  /// 維持が有効な間、リンクが失われても OS が張り直す。呼び出し側には
-  /// 切断と再接続として通知され、装置・セッション・GATT オブジェクトは
-  /// 保持されるのでハンドルはそのまま使える。ただし通知の購読(CCCD)は
-  /// 装置側が切断で落とすため、張り直しは呼び出し側の責務である。
-  Future<void> connectMaintained(Peripheral peripheral) async {
-    if (peripheral is! PeripheralImpl) {
-      throw TypeError();
-    }
-    final addressArgs = peripheral.address;
-    _logger.info('connectMaintained: $addressArgs');
-    await _api.connectMaintained(addressArgs);
-  }
-
-  /// `GattSession.MaintainConnection` を明示的に切り替える。
-  ///
-  /// 通常は [connectMaintained] と [disconnect] で足りる。接続中の解除は
-  /// リンクの解体を招くため、その用途では使わないこと。
-  /// セッションを保持していない(未接続の)装置に対してはエラーになる。
-  Future<void> setMaintainConnection(
-    Peripheral peripheral, {
-    required bool enable,
-  }) async {
-    if (peripheral is! PeripheralImpl) {
-      throw TypeError();
-    }
-    final addressArgs = peripheral.address;
-    _logger.info('setMaintainConnection: $addressArgs - $enable');
-    await _api.setMaintainConnection(addressArgs, enable);
   }
 
   @override
@@ -541,10 +478,48 @@ final class CentralManagerImpl
   }
 
   @override
-  void onLogged(String messageArgs) {
-    // ネイティブ層の診断メッセージの中継(ネイティブに独自のログ機構が
-    // 無いため)。調査用の観測値なので info。
-    _logger.info(messageArgs);
+  void onLogged(LogLevelArgs levelArgs, String messageArgs) {
+    // ネイティブ層のログの中継。段付けは Dart 側と共通(冒頭のコメント)。
+    final level = switch (levelArgs) {
+      LogLevelArgs.severe => Level.SEVERE,
+      LogLevelArgs.info => Level.INFO,
+      LogLevelArgs.fine => Level.FINE,
+      LogLevelArgs.finer => Level.FINER,
+    };
+    _logger.log(level, '[native] $messageArgs');
+  }
+
+  /// pigeon 経由の失敗([PlatformException])を理由付きの
+  /// [BluetoothLowEnergyException] に写す。
+  ///
+  /// 理由の分類はネイティブが code で返し、ATT のエラーコードは details の
+  /// protocolError が持つ(無ければ null)。
+  Future<T> _guard<T>(Future<T> Function() body) async {
+    try {
+      return await body();
+    } on PlatformException catch (e) {
+      final details = e.details;
+      final att = details is Map ? details['protocolError'] as int? : null;
+      final reason = switch (e.code) {
+        'DeviceNotFound' => BluetoothLowEnergyErrorReason.deviceNotFound,
+        'LinkFailed' => BluetoothLowEnergyErrorReason.linkFailed,
+        'GattUnreachable' ||
+        'Unreachable' =>
+          BluetoothLowEnergyErrorReason.gattUnreachable,
+        'PairingMismatch' => BluetoothLowEnergyErrorReason.pairingMismatch,
+        'ProtocolError' when att == 0x05 || att == 0x0f =>
+          BluetoothLowEnergyErrorReason.protectionRequired,
+        'ProtocolError' ||
+        'AccessDenied' =>
+          BluetoothLowEnergyErrorReason.rejected,
+        _ => BluetoothLowEnergyErrorReason.unknown,
+      };
+      throw BluetoothLowEnergyException(
+        reason,
+        e.message ?? e.code,
+        attCode: att,
+      );
+    }
   }
 
   Future<void> _initialize() async {

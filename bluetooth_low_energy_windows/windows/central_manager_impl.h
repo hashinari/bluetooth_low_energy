@@ -33,7 +33,7 @@ namespace bluetooth_low_energy_windows
 		ErrorOr<BluetoothLowEnergyStateArgs> GetState() override;
 		std::optional<FlutterError> StartDiscovery(const flutter::EncodableList &service_uuids_args) override;
 		std::optional<FlutterError> StopDiscovery() override;
-		void Connect(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result) override;
+		void Connect(int64_t address_args, bool maintain_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		std::optional<FlutterError> Disconnect(int64_t address_args) override;
 		ErrorOr<int64_t> GetMTU(int64_t address_args) override;
 		void GetServices(int64_t address_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<flutter::EncodableList> reply)> result) override;
@@ -43,14 +43,11 @@ namespace bluetooth_low_energy_windows
 		void ReadCharacteristic(int64_t address_args, int64_t handle_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<std::vector<uint8_t>> reply)> result) override;
 		void WriteCharacteristic(int64_t address_args, int64_t handle_args, const std::vector<uint8_t> &value_args, const GATTCharacteristicWriteTypeArgs &type_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		void SetCharacteristicNotifyState(int64_t address_args, int64_t handle_args, const GATTCharacteristicNotifyStateArgs &state_args, std::function<void(std::optional<FlutterError> reply)> result) override;
-		std::optional<FlutterError> SetCharacteristicProtectionLevel(int64_t address_args, int64_t handle_args, const GATTProtectionLevelArgs &level_args) override;
 		void ReadDescriptor(int64_t address_args, int64_t handle_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<std::vector<uint8_t>> reply)> result) override;
 		void WriteDescriptor(int64_t address_args, int64_t handle_args, const std::vector<uint8_t> &value_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		void Pair(int64_t address_args, const DevicePairingProtectionLevelArgs &protection_level_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result) override;
 		void Unpair(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result) override;
 		void IsPaired(int64_t address_args, std::function<void(ErrorOr<bool> reply)> result) override;
-		void ConnectMaintained(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result) override;
-		std::optional<FlutterError> SetMaintainConnection(int64_t address_args, bool enable_args) override;
 
 	private:
 		// プラットフォームスレッド(= このオブジェクトが生成される
@@ -75,14 +72,9 @@ namespace bluetooth_low_energy_windows
 		std::map<int64_t, std::optional<winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::ConnectionStatusChanged_revoker>> m_device_connection_status_changed_revokers;
 		std::map<int64_t, std::optional<winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattSession::MaxPduSizeChanged_revoker>> m_session_max_pdu_size_changed_revokers;
 		std::map<int64_t, std::map<int64_t, std::optional<winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCharacteristic::ValueChanged_revoker>>> m_characteristic_value_changed_revokers;
-		// 調査用: 直近の PairAsync で PairingRequested(儀式)が発火したか。
-		// -1 = 未発火。それ以外 = DevicePairingKinds の値。PairAsync の前に
-		// リセットし、ハンドラで記録する(pair は上位で直列化されている前提)。
-		std::atomic<int32_t> m_pairing_requested_kind{-1};
 
 		winrt::fire_and_forget InitializeAsync(std::function<void(std::optional<FlutterError> reply)> result);
-		winrt::fire_and_forget ConnectAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result);
-		winrt::fire_and_forget ConnectMaintainedAsync(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result);
+		winrt::fire_and_forget ConnectAsync(int64_t address_args, bool maintain_args, std::function<void(std::optional<FlutterError> reply)> result);
 		winrt::fire_and_forget GetServicesAsync(int64_t address_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<flutter::EncodableList> reply)> result);
 		winrt::fire_and_forget GetIncludedServicesAsync(int64_t address_args, int64_t handle_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<flutter::EncodableList> reply)> result);
 		winrt::fire_and_forget GetCharacteristicsAsync(int64_t address_args, int64_t handle_args, const CacheModeArgs &mode_args, std::function<void(ErrorOr<flutter::EncodableList> reply)> result);
@@ -99,6 +91,8 @@ namespace bluetooth_low_energy_windows
 		//     戻してから送る)──
 		// 引数は値渡し。イベントハンドラのスレッドで組み立てた値を
 		// コルーチンの再開後も安全に使うため。
+		// ネイティブ層のログを Dart の logger へ流す(レベル付き)。
+		winrt::fire_and_forget Log(LogLevelArgs level_args, std::string message_args);
 		winrt::fire_and_forget NotifyStateChanged(BluetoothLowEnergyStateArgs state_args);
 		winrt::fire_and_forget NotifyDiscovered(PeripheralArgs peripheral_args, int64_t rssi_args, int64_t timestamp_args, AdvertisementTypeArgs type_args, AdvertisementArgs advertisement_args);
 		winrt::fire_and_forget NotifyMTUChanged(PeripheralArgs peripheral_args, int64_t mtu_args);

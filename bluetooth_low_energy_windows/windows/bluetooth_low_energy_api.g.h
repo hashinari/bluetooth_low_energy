@@ -81,6 +81,14 @@ enum class ConnectionStateArgs {
   kConnected = 1
 };
 
+// ネイティブログの段。Dart 側 logger の段付けに対応する。
+enum class LogLevelArgs {
+  kSevere = 0,
+  kInfo = 1,
+  kFine = 2,
+  kFiner = 3
+};
+
 // Windows の `DevicePairingProtectionLevel` をそのまま写したもの。
 //
 // pair で要求する保護レベル。装置側のセキュリティ要求(暗号化必須の
@@ -642,8 +650,22 @@ class CentralManagerHostApi {
   virtual ErrorOr<BluetoothLowEnergyStateArgs> GetState() = 0;
   virtual std::optional<FlutterError> StartDiscovery(const flutter::EncodableList& service_u_u_i_ds_args) = 0;
   virtual std::optional<FlutterError> StopDiscovery() = 0;
+  // 接続する。**保護されていない GATT DB に届く状態にして返る。**
+  //
+  // [maintainArgs] は維持の指定。維持を先に立ててから、uncached のサービス
+  // 探索を引き金にリンクを確立する。探索の結果は返さない。
+  //
+  // 失敗は FlutterError の code で分類して返す:
+  // - `DeviceNotFound` — OS が装置を見つけられない
+  // - `LinkFailed` — リンクが立たない
+  // - `GattUnreachable` — リンクは立ったが GATT に届かない
+  // - `PairingMismatch` — GATT に届かず、OS に記録が残っている
+  //   （記録と相手の鍵の食い違い。復旧は unpair）
+  //
+  // details には status と、あれば protocolError（ATT コード）が入る。
   virtual void Connect(
     int64_t address_args,
+    bool maintain_args,
     std::function<void(std::optional<FlutterError> reply)> result) = 0;
   virtual std::optional<FlutterError> Disconnect(int64_t address_args) = 0;
   virtual ErrorOr<int64_t> GetMTU(int64_t address_args) = 0;
@@ -682,17 +704,6 @@ class CentralManagerHostApi {
     int64_t handle_args,
     const GATTCharacteristicNotifyStateArgs& state_args,
     std::function<void(std::optional<FlutterError> reply)> result) = 0;
-  // 特性への無線通信に要求する GATT セキュリティ
-  // (`GattCharacteristic.ProtectionLevel`)を設定する。
-  //
-  // 設定後にその特性へ read/write すると、スタックは要求水準を満たす
-  // リンク(暗号化等)を操作の前提として確立しようとする。装置側の
-  // セキュリティ要求と一致させることで、ATT エラー(0x0F 等)を起点と
-  // した事後の再試行ではなく、OS 主導の事前確立に切り替えられる。
-  virtual std::optional<FlutterError> SetCharacteristicProtectionLevel(
-    int64_t address_args,
-    int64_t handle_args,
-    const GATTProtectionLevelArgs& level_args) = 0;
   virtual void ReadDescriptor(
     int64_t address_args,
     int64_t handle_args,
@@ -709,11 +720,9 @@ class CentralManagerHostApi {
   // ボンディングしない装置では鍵が保存されないため、**接続ごとに**
   // これを済ませてから初期読み出しへ進む必要がある。
   //
-  // デスクトップでは同意は必ずシステムダイアログで行われ、アプリからは
-  // 抑止できない(Microsoft の文書と実測の両方で確認)。アプリ側の
-  // PairingRequested ハンドラは、ConfirmOnly を受理するために常に登録する
-  // (登録しないと RequiredHandlerNotRegistered / RejectedByHandler で
-  // 失敗する)。つまり「自動承認するか」という選択肢は存在しない。
+  // この経路ではダイアログは出ない。PairingRequested ハンドラを登録して
+  // ConfirmOnly を Accept() で受理するためである(登録しないと
+  // RequiredHandlerNotRegistered / RejectedByHandler で失敗する)。
   //
   // 失敗を例外にせず結果として返すので、キャンセル・タイムアウト・拒否を
   // 呼び出し側で区別できる。
@@ -736,33 +745,6 @@ class CentralManagerHostApi {
   virtual void IsPaired(
     int64_t address_args,
     std::function<void(ErrorOr<bool> reply)> result) = 0;
-  // `GattSession.MaintainConnection` を立てて接続を開始する。
-  //
-  // connect の接続待ちは OS 内部で 7 秒固定・キャンセル不可である。
-  // こちらは「デバイスが現れ次第つなぐ」を OS へ依頼し、リンク確立を
-  // 待たずに返る。確立は onConnectionStateChanged(connected)で通知する
-  // ので、待ち時間の上限と中断は呼び出し側が決める。中断は disconnect。
-  //
-  // 依頼はセッションが生きている限り有効であり、接続中に維持を解除しては
-  // ならない。Windows でリンクを保持するのは維持依頼か実行中の GATT 操作の
-  // どちらかで、確立直後はまだ後者を持たないため、そこで解除すると OS が
-  // リンクを解体する。解除は disconnect が行う。
-  //
-  // 維持が有効な間、リンクが失われても OS が張り直す。呼び出し側には
-  // 切断と再接続として通知され、装置・セッション・GATT オブジェクトは
-  // 保持されるのでハンドルはそのまま使える。ただし通知の購読(CCCD)は
-  // 装置側が切断で落とすため、張り直しは呼び出し側の責務である。
-  virtual void ConnectMaintained(
-    int64_t address_args,
-    std::function<void(std::optional<FlutterError> reply)> result) = 0;
-  // `GattSession.MaintainConnection` を明示的に切り替える。
-  //
-  // 通常は connectMaintained と disconnect で足りる。接続中の解除は
-  // リンクの解体を招くため、その用途では使わないこと。
-  // セッションを保持していない(未接続の)装置に対してはエラーになる。
-  virtual std::optional<FlutterError> SetMaintainConnection(
-    int64_t address_args,
-    bool enable_args) = 0;
 
   // The codec used by CentralManagerHostApi.
   static const flutter::StandardMessageCodec& GetCodec();
@@ -815,11 +797,13 @@ class CentralManagerFlutterApi {
     const std::vector<uint8_t>& value_args,
     std::function<void(void)>&& on_success,
     std::function<void(const FlutterError&)>&& on_error);
-  // ネイティブ層の診断メッセージ。Dart 側の logger(info)へ中継する。
+  // ネイティブ層のログ。Dart 側の logger へレベル付きで中継する。
   //
-  // ネイティブには独自のログ機構が無いため、調査時の観測値
-  // (例: ペアリングの保護レベル・儀式の発火有無)はこの口で表出する。
+  // ネイティブには独自のログ機構が無いため、ここで Dart 側と同じ段付け
+  // (severe=失敗 / info=ライフサイクル / fine=操作単位 / finer=イベント毎)
+  // に合流させる。
   void OnLogged(
+    const LogLevelArgs& level_args,
     const std::string& message_args,
     std::function<void(void)>&& on_success,
     std::function<void(const FlutterError&)>&& on_error);

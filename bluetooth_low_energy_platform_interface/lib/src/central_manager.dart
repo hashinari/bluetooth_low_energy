@@ -6,6 +6,7 @@ import 'bluetooth_low_energy_manager.dart';
 import 'event_args.dart';
 import 'gatt.dart';
 import 'peripheral.dart';
+import 'security.dart';
 import 'uuid.dart';
 
 /// An object that scans for, discovers, connects to, and manages peripherals.
@@ -61,10 +62,61 @@ abstract interface class CentralManager implements BluetoothLowEnergyManager {
   Future<List<Peripheral>> retrieveConnectedPeripherals();
 
   /// Establishes a local connection to a peripheral.
-  Future<void> connect(Peripheral peripheral);
+  ///
+  /// 保護されていない GATT DB に接続できる状態にして返る。サービスの列挙結果は
+  /// 返さない（取るのは [discoverGATT]）。失敗は [BluetoothLowEnergyException]
+  /// で理由が分かれる — リンクが立たないのか、リンクは立ったが GATT に
+  /// 届かないのか。後者で OS に記録が残っていれば
+  /// [BluetoothLowEnergyErrorReason.pairingMismatch]（復旧は [unpair]）。
+  ///
+  /// [maintain] は、リンクが落ちたときに OS へ張り直させるかの指定。既定は
+  /// 維持あり。維持中の再確立は切断・接続として [connectionStateChanged] に
+  /// 届き、ハンドルはそのまま使える。通知の購読（CCCD）は相手側が切断で
+  /// 落とすため、張り直しは呼び出し側が行う。**維持しない接続は、Windows では
+  /// アイドルになった時点で落ちうる**（リンクを保持するのは維持依頼か実行中の
+  /// GATT 操作だけであるため）。
+  ///
+  /// 待ちの上限は持たない。切り上げるときは呼び出し側が `.timeout()` を掛け、
+  /// [disconnect] で中断する。
+  Future<void> connect(Peripheral peripheral, {bool maintain = true});
 
   /// Cancels an active or pending local connection to a peripheral.
   Future<void> disconnect(Peripheral peripheral);
+
+  /// ペアリングを開始し、結果が出るまで待つ。**保護を得るための操作**である。
+  ///
+  /// 失敗は例外にせず [PairingResult] で返す。キャンセル・拒否・既に記録ありは
+  /// 正常系の分岐であって、呼び出し側が次の手を選ぶ材料である。
+  ///
+  /// **戻り値は OS のペアリング結果であり、リンクが保護されたことは保証
+  /// しない。**保護されたかは属性への実アクセスで確かめる。OS に記録が残って
+  /// いると何もせず [PairingResult.alreadyPaired] で返るため、鍵を保存しない
+  /// 相手では切断ごとの [unpair] と対にする。
+  ///
+  /// [protection] は要求する保護の水準。指定できないプラットフォームでは
+  /// 無視される。
+  ///
+  /// This method is available on Windows, throws [UnsupportedError] on other
+  /// platforms.
+  Future<PairingResult> pair(
+    Peripheral peripheral, {
+    PairingProtection protection = PairingProtection.osDefault,
+  });
+
+  /// OS が保持しているペアリングの記録を消す。接続は不要。
+  ///
+  /// This method is available on Windows, throws [UnsupportedError] on other
+  /// platforms.
+  Future<void> unpair(Peripheral peripheral);
+
+  /// OS がこの相手の記録を持っているかを照会する。接続は不要。
+  ///
+  /// **リンクが保護されているかは、これでは分からない。**記録があっても保護
+  /// されているとは限らない。保護は属性への実アクセスで確かめる。
+  ///
+  /// This method is available on Windows, throws [UnsupportedError] on other
+  /// platforms.
+  Future<bool> isPaired(Peripheral peripheral);
 
   /// Request an MTU size used for a given connection. Please note that starting
   /// from Android 14, the Android Bluetooth stack requests the BLE ATT MTU to

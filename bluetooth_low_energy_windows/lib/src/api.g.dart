@@ -61,6 +61,14 @@ enum ConnectionStateArgs {
   connected,
 }
 
+/// ネイティブログの段。Dart 側 logger の段付けに対応する。
+enum LogLevelArgs {
+  severe,
+  info,
+  fine,
+  finer,
+}
+
 /// Windows の `DevicePairingProtectionLevel` をそのまま写したもの。
 ///
 /// pair で要求する保護レベル。装置側のセキュリティ要求(暗号化必須の
@@ -816,65 +824,68 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is ConnectionStateArgs) {
       buffer.putUint8(131);
       writeValue(buffer, value.index);
-    }    else if (value is DevicePairingProtectionLevelArgs) {
+    }    else if (value is LogLevelArgs) {
       buffer.putUint8(132);
       writeValue(buffer, value.index);
-    }    else if (value is DevicePairingResultStatusArgs) {
+    }    else if (value is DevicePairingProtectionLevelArgs) {
       buffer.putUint8(133);
       writeValue(buffer, value.index);
-    }    else if (value is GATTCharacteristicPropertyArgs) {
+    }    else if (value is DevicePairingResultStatusArgs) {
       buffer.putUint8(134);
       writeValue(buffer, value.index);
-    }    else if (value is GATTCharacteristicWriteTypeArgs) {
+    }    else if (value is GATTCharacteristicPropertyArgs) {
       buffer.putUint8(135);
       writeValue(buffer, value.index);
-    }    else if (value is GATTCharacteristicNotifyStateArgs) {
+    }    else if (value is GATTCharacteristicWriteTypeArgs) {
       buffer.putUint8(136);
       writeValue(buffer, value.index);
-    }    else if (value is GATTProtectionLevelArgs) {
+    }    else if (value is GATTCharacteristicNotifyStateArgs) {
       buffer.putUint8(137);
       writeValue(buffer, value.index);
-    }    else if (value is GATTProtocolErrorArgs) {
+    }    else if (value is GATTProtectionLevelArgs) {
       buffer.putUint8(138);
       writeValue(buffer, value.index);
-    }    else if (value is CacheModeArgs) {
+    }    else if (value is GATTProtocolErrorArgs) {
       buffer.putUint8(139);
       writeValue(buffer, value.index);
-    }    else if (value is ManufacturerSpecificDataArgs) {
+    }    else if (value is CacheModeArgs) {
       buffer.putUint8(140);
-      writeValue(buffer, value.encode());
-    }    else if (value is AdvertisementArgs) {
+      writeValue(buffer, value.index);
+    }    else if (value is ManufacturerSpecificDataArgs) {
       buffer.putUint8(141);
       writeValue(buffer, value.encode());
-    }    else if (value is CentralArgs) {
+    }    else if (value is AdvertisementArgs) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
-    }    else if (value is PeripheralArgs) {
+    }    else if (value is CentralArgs) {
       buffer.putUint8(143);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTDescriptorArgs) {
+    }    else if (value is PeripheralArgs) {
       buffer.putUint8(144);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTCharacteristicArgs) {
+    }    else if (value is GATTDescriptorArgs) {
       buffer.putUint8(145);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTServiceArgs) {
+    }    else if (value is GATTCharacteristicArgs) {
       buffer.putUint8(146);
       writeValue(buffer, value.encode());
-    }    else if (value is MutableGATTDescriptorArgs) {
+    }    else if (value is GATTServiceArgs) {
       buffer.putUint8(147);
       writeValue(buffer, value.encode());
-    }    else if (value is MutableGATTCharacteristicArgs) {
+    }    else if (value is MutableGATTDescriptorArgs) {
       buffer.putUint8(148);
       writeValue(buffer, value.encode());
-    }    else if (value is MutableGATTServiceArgs) {
+    }    else if (value is MutableGATTCharacteristicArgs) {
       buffer.putUint8(149);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTReadRequestArgs) {
+    }    else if (value is MutableGATTServiceArgs) {
       buffer.putUint8(150);
       writeValue(buffer, value.encode());
-    }    else if (value is GATTWriteRequestArgs) {
+    }    else if (value is GATTReadRequestArgs) {
       buffer.putUint8(151);
+      writeValue(buffer, value.encode());
+    }    else if (value is GATTWriteRequestArgs) {
+      buffer.putUint8(152);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -895,51 +906,54 @@ class _PigeonCodec extends StandardMessageCodec {
         return value == null ? null : ConnectionStateArgs.values[value];
       case 132: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : DevicePairingProtectionLevelArgs.values[value];
+        return value == null ? null : LogLevelArgs.values[value];
       case 133: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : DevicePairingResultStatusArgs.values[value];
+        return value == null ? null : DevicePairingProtectionLevelArgs.values[value];
       case 134: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : GATTCharacteristicPropertyArgs.values[value];
+        return value == null ? null : DevicePairingResultStatusArgs.values[value];
       case 135: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : GATTCharacteristicWriteTypeArgs.values[value];
+        return value == null ? null : GATTCharacteristicPropertyArgs.values[value];
       case 136: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : GATTCharacteristicNotifyStateArgs.values[value];
+        return value == null ? null : GATTCharacteristicWriteTypeArgs.values[value];
       case 137: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : GATTProtectionLevelArgs.values[value];
+        return value == null ? null : GATTCharacteristicNotifyStateArgs.values[value];
       case 138: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : GATTProtocolErrorArgs.values[value];
+        return value == null ? null : GATTProtectionLevelArgs.values[value];
       case 139: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : CacheModeArgs.values[value];
+        return value == null ? null : GATTProtocolErrorArgs.values[value];
       case 140: 
-        return ManufacturerSpecificDataArgs.decode(readValue(buffer)!);
+        final int? value = readValue(buffer) as int?;
+        return value == null ? null : CacheModeArgs.values[value];
       case 141: 
-        return AdvertisementArgs.decode(readValue(buffer)!);
+        return ManufacturerSpecificDataArgs.decode(readValue(buffer)!);
       case 142: 
-        return CentralArgs.decode(readValue(buffer)!);
+        return AdvertisementArgs.decode(readValue(buffer)!);
       case 143: 
-        return PeripheralArgs.decode(readValue(buffer)!);
+        return CentralArgs.decode(readValue(buffer)!);
       case 144: 
-        return GATTDescriptorArgs.decode(readValue(buffer)!);
+        return PeripheralArgs.decode(readValue(buffer)!);
       case 145: 
-        return GATTCharacteristicArgs.decode(readValue(buffer)!);
+        return GATTDescriptorArgs.decode(readValue(buffer)!);
       case 146: 
-        return GATTServiceArgs.decode(readValue(buffer)!);
+        return GATTCharacteristicArgs.decode(readValue(buffer)!);
       case 147: 
-        return MutableGATTDescriptorArgs.decode(readValue(buffer)!);
+        return GATTServiceArgs.decode(readValue(buffer)!);
       case 148: 
-        return MutableGATTCharacteristicArgs.decode(readValue(buffer)!);
+        return MutableGATTDescriptorArgs.decode(readValue(buffer)!);
       case 149: 
-        return MutableGATTServiceArgs.decode(readValue(buffer)!);
+        return MutableGATTCharacteristicArgs.decode(readValue(buffer)!);
       case 150: 
-        return GATTReadRequestArgs.decode(readValue(buffer)!);
+        return MutableGATTServiceArgs.decode(readValue(buffer)!);
       case 151: 
+        return GATTReadRequestArgs.decode(readValue(buffer)!);
+      case 152: 
         return GATTWriteRequestArgs.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -1057,14 +1071,27 @@ class CentralManagerHostApi {
     }
   }
 
-  Future<void> connect(int addressArgs) async {
+  /// 接続する。**保護されていない GATT DB に届く状態にして返る。**
+  ///
+  /// [maintainArgs] は維持の指定。維持を先に立ててから、uncached のサービス
+  /// 探索を引き金にリンクを確立する。探索の結果は返さない。
+  ///
+  /// 失敗は FlutterError の code で分類して返す:
+  /// - `DeviceNotFound` — OS が装置を見つけられない
+  /// - `LinkFailed` — リンクが立たない
+  /// - `GattUnreachable` — リンクは立ったが GATT に届かない
+  /// - `PairingMismatch` — GATT に届かず、OS に記録が残っている
+  ///   （記録と相手の鍵の食い違い。復旧は unpair）
+  ///
+  /// details には status と、あれば protocolError（ATT コード）が入る。
+  Future<void> connect(int addressArgs, bool maintainArgs) async {
     final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.connect$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[addressArgs]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[addressArgs, maintainArgs]);
     final List<Object?>? pigeonVar_replyList =
         await pigeonVar_sendFuture as List<Object?>?;
     if (pigeonVar_replyList == null) {
@@ -1317,36 +1344,6 @@ class CentralManagerHostApi {
     }
   }
 
-  /// 特性への無線通信に要求する GATT セキュリティ
-  /// (`GattCharacteristic.ProtectionLevel`)を設定する。
-  ///
-  /// 設定後にその特性へ read/write すると、スタックは要求水準を満たす
-  /// リンク(暗号化等)を操作の前提として確立しようとする。装置側の
-  /// セキュリティ要求と一致させることで、ATT エラー(0x0F 等)を起点と
-  /// した事後の再試行ではなく、OS 主導の事前確立に切り替えられる。
-  Future<void> setCharacteristicProtectionLevel(int addressArgs, int handleArgs, GATTProtectionLevelArgs levelArgs) async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.setCharacteristicProtectionLevel$pigeonVar_messageChannelSuffix';
-    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[addressArgs, handleArgs, levelArgs]);
-    final List<Object?>? pigeonVar_replyList =
-        await pigeonVar_sendFuture as List<Object?>?;
-    if (pigeonVar_replyList == null) {
-      throw _createConnectionError(pigeonVar_channelName);
-    } else if (pigeonVar_replyList.length > 1) {
-      throw PlatformException(
-        code: pigeonVar_replyList[0]! as String,
-        message: pigeonVar_replyList[1] as String?,
-        details: pigeonVar_replyList[2],
-      );
-    } else {
-      return;
-    }
-  }
-
   Future<Uint8List> readDescriptor(int addressArgs, int handleArgs, CacheModeArgs modeArgs) async {
     final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.readDescriptor$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
@@ -1404,11 +1401,9 @@ class CentralManagerHostApi {
   /// ボンディングしない装置では鍵が保存されないため、**接続ごとに**
   /// これを済ませてから初期読み出しへ進む必要がある。
   ///
-  /// デスクトップでは同意は必ずシステムダイアログで行われ、アプリからは
-  /// 抑止できない(Microsoft の文書と実測の両方で確認)。アプリ側の
-  /// PairingRequested ハンドラは、ConfirmOnly を受理するために常に登録する
-  /// (登録しないと RequiredHandlerNotRegistered / RejectedByHandler で
-  /// 失敗する)。つまり「自動承認するか」という選択肢は存在しない。
+  /// この経路ではダイアログは出ない。PairingRequested ハンドラを登録して
+  /// ConfirmOnly を Accept() で受理するためである(登録しないと
+  /// RequiredHandlerNotRegistered / RejectedByHandler で失敗する)。
   ///
   /// 失敗を例外にせず結果として返すので、キャンセル・タイムアウト・拒否を
   /// 呼び出し側で区別できる。
@@ -1499,73 +1494,6 @@ class CentralManagerHostApi {
       return (pigeonVar_replyList[0] as bool?)!;
     }
   }
-
-  /// `GattSession.MaintainConnection` を立てて接続を開始する。
-  ///
-  /// connect の接続待ちは OS 内部で 7 秒固定・キャンセル不可である。
-  /// こちらは「デバイスが現れ次第つなぐ」を OS へ依頼し、リンク確立を
-  /// 待たずに返る。確立は onConnectionStateChanged(connected)で通知する
-  /// ので、待ち時間の上限と中断は呼び出し側が決める。中断は disconnect。
-  ///
-  /// 依頼はセッションが生きている限り有効であり、接続中に維持を解除しては
-  /// ならない。Windows でリンクを保持するのは維持依頼か実行中の GATT 操作の
-  /// どちらかで、確立直後はまだ後者を持たないため、そこで解除すると OS が
-  /// リンクを解体する。解除は disconnect が行う。
-  ///
-  /// 維持が有効な間、リンクが失われても OS が張り直す。呼び出し側には
-  /// 切断と再接続として通知され、装置・セッション・GATT オブジェクトは
-  /// 保持されるのでハンドルはそのまま使える。ただし通知の購読(CCCD)は
-  /// 装置側が切断で落とすため、張り直しは呼び出し側の責務である。
-  Future<void> connectMaintained(int addressArgs) async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.connectMaintained$pigeonVar_messageChannelSuffix';
-    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[addressArgs]);
-    final List<Object?>? pigeonVar_replyList =
-        await pigeonVar_sendFuture as List<Object?>?;
-    if (pigeonVar_replyList == null) {
-      throw _createConnectionError(pigeonVar_channelName);
-    } else if (pigeonVar_replyList.length > 1) {
-      throw PlatformException(
-        code: pigeonVar_replyList[0]! as String,
-        message: pigeonVar_replyList[1] as String?,
-        details: pigeonVar_replyList[2],
-      );
-    } else {
-      return;
-    }
-  }
-
-  /// `GattSession.MaintainConnection` を明示的に切り替える。
-  ///
-  /// 通常は connectMaintained と disconnect で足りる。接続中の解除は
-  /// リンクの解体を招くため、その用途では使わないこと。
-  /// セッションを保持していない(未接続の)装置に対してはエラーになる。
-  Future<void> setMaintainConnection(int addressArgs, bool enableArgs) async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerHostApi.setMaintainConnection$pigeonVar_messageChannelSuffix';
-    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[addressArgs, enableArgs]);
-    final List<Object?>? pigeonVar_replyList =
-        await pigeonVar_sendFuture as List<Object?>?;
-    if (pigeonVar_replyList == null) {
-      throw _createConnectionError(pigeonVar_channelName);
-    } else if (pigeonVar_replyList.length > 1) {
-      throw PlatformException(
-        code: pigeonVar_replyList[0]! as String,
-        message: pigeonVar_replyList[1] as String?,
-        details: pigeonVar_replyList[2],
-      );
-    } else {
-      return;
-    }
-  }
 }
 
 abstract class CentralManagerFlutterApi {
@@ -1581,11 +1509,12 @@ abstract class CentralManagerFlutterApi {
 
   void onCharacteristicNotified(PeripheralArgs peripheralArgs, GATTCharacteristicArgs characteristicArgs, Uint8List valueArgs);
 
-  /// ネイティブ層の診断メッセージ。Dart 側の logger(info)へ中継する。
+  /// ネイティブ層のログ。Dart 側の logger へレベル付きで中継する。
   ///
-  /// ネイティブには独自のログ機構が無いため、調査時の観測値
-  /// (例: ペアリングの保護レベル・儀式の発火有無)はこの口で表出する。
-  void onLogged(String messageArgs);
+  /// ネイティブには独自のログ機構が無いため、ここで Dart 側と同じ段付け
+  /// (severe=失敗 / info=ライフサイクル / fine=操作単位 / finer=イベント毎)
+  /// に合流させる。
+  void onLogged(LogLevelArgs levelArgs, String messageArgs);
 
   static void setUp(CentralManagerFlutterApi? api, {BinaryMessenger? binaryMessenger, String messageChannelSuffix = '',}) {
     messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
@@ -1749,11 +1678,14 @@ abstract class CentralManagerFlutterApi {
           assert(message != null,
           'Argument for dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerFlutterApi.onLogged was null.');
           final List<Object?> args = (message as List<Object?>?)!;
-          final String? arg_messageArgs = (args[0] as String?);
+          final LogLevelArgs? arg_levelArgs = (args[0] as LogLevelArgs?);
+          assert(arg_levelArgs != null,
+              'Argument for dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerFlutterApi.onLogged was null, expected non-null LogLevelArgs.');
+          final String? arg_messageArgs = (args[1] as String?);
           assert(arg_messageArgs != null,
               'Argument for dev.flutter.pigeon.bluetooth_low_energy_windows.CentralManagerFlutterApi.onLogged was null, expected non-null String.');
           try {
-            api.onLogged(arg_messageArgs!);
+            api.onLogged(arg_levelArgs!, arg_messageArgs!);
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
