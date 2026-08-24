@@ -161,7 +161,11 @@ final class CentralManagerImpl
   }
 
   @override
-  Future<List<GATTService>> discoverGATT(Peripheral peripheral) async {
+  Future<List<GATTService>> discoverGATT(
+    Peripheral peripheral, {
+    // キャッシュは OS が管理するため、指定に関わらず OS の規定で動く。
+    bool cached = false,
+  }) async {
     // 发现 GATT 服务
     final uuidArgs = peripheral.uuid.toArgs();
     final servicesArgs = await _discoverServices(uuidArgs);

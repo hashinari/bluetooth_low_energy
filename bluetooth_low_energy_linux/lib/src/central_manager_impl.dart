@@ -211,7 +211,11 @@ final class CentralManagerImpl implements CentralManager {
   }
 
   @override
-  Future<List<GATTService>> discoverGATT(Peripheral peripheral) async {
+  Future<List<GATTService>> discoverGATT(
+    Peripheral peripheral, {
+    // キャッシュは OS が管理するため、指定に関わらず OS の規定で動く。
+    bool cached = false,
+  }) async {
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }

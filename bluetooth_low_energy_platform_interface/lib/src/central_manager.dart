@@ -144,7 +144,14 @@ abstract interface class CentralManager implements BluetoothLowEnergyManager {
   Future<int> readRSSI(Peripheral peripheral);
 
   /// Discovers the GATT services, characteristics and descriptors of the peripheral.
-  Future<List<GATTService>> discoverGATT(Peripheral peripheral);
+  ///
+  /// [cached] にキャッシュを使うかを指定する（既定は使わない＝毎回実際に探索する）。
+  /// Windows は指定どおりに動く。キャッシュを OS が管理するプラットフォームは、
+  /// 指定に関わらず OS の規定で動く。
+  Future<List<GATTService>> discoverGATT(
+    Peripheral peripheral, {
+    bool cached = false,
+  });
 
   /// Retrieves the value of a specified characteristic.
   Future<Uint8List> readCharacteristic(

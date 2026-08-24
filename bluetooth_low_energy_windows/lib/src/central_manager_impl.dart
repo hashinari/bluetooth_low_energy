@@ -168,13 +168,17 @@ final class CentralManagerImpl
   }
 
   @override
-  Future<List<GATTService>> discoverGATT(Peripheral peripheral) async {
+  Future<List<GATTService>> discoverGATT(
+    Peripheral peripheral, {
+    bool cached = false,
+  }) async {
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }
     final addressArgs = peripheral.address;
+    final modeArgs = cached ? CacheModeArgs.cached : CacheModeArgs.uncached;
     final servicesArgs = await _guard(
-      () => _getServices(addressArgs, CacheModeArgs.uncached),
+      () => _getServices(addressArgs, modeArgs),
     );
     final services = servicesArgs.map((args) => args.toService()).toList();
     return services;
