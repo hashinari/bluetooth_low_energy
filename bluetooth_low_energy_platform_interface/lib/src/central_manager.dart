@@ -96,11 +96,16 @@ abstract interface class CentralManager implements BluetoothLowEnergyManager {
   /// [protection] は要求する保護の水準。指定できないプラットフォームでは
   /// 無視される。
   ///
+  /// [consent] は同意を誰が与えるか。既定の [PairingConsent.system] は OS の
+  /// 同意 UI で利用者が承認する。[PairingConsent.app] は Just Works の同意を
+  /// 呼び出し側が代行し、UI は出ない。
+  ///
   /// This method is available on Windows, throws [UnsupportedError] on other
   /// platforms.
   Future<PairingResult> pair(
     Peripheral peripheral, {
     PairingProtection protection = PairingProtection.osDefault,
+    PairingConsent consent = PairingConsent.system,
   });
 
   /// OS が保持しているペアリングの記録を消す。接続は不要。

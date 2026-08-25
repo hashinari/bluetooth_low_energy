@@ -22,6 +22,20 @@ enum PairingProtection {
   encryptionAndAuthentication,
 }
 
+/// ペアリングの同意を誰が与えるか。
+///
+/// 既定は [system]。`pair` は同意・PIN の代理入力を持たないのが原則で、
+/// 利用者の承認は OS の同意 UI で行う。[app] は Just Works(ConfirmOnly)
+/// の同意を呼び出し側が代行する選択で、OS の UI は出ない。PIN の入力・
+/// 表示が要るセレモニーはどちらでも代行しない(OS に委ねる)。
+enum PairingConsent {
+  /// OS が同意 UI を出し、利用者が承認する。
+  system,
+
+  /// 呼び出し側が ConfirmOnly を承認する(代行)。OS の UI は出ない。
+  app,
+}
+
 /// ペアリングの結果。
 ///
 /// **失敗も例外ではなくこの値で返る。**キャンセル・拒否・既に記録ありは

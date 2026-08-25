@@ -24,6 +24,19 @@ extension PairingProtectionX on PairingProtection {
   }
 }
 
+/// 中立な同意の主体 → 生成された引数型。
+extension PairingConsentX on PairingConsent {
+  /// [DevicePairingConsentArgs] へ写す。
+  DevicePairingConsentArgs toArgs() {
+    switch (this) {
+      case PairingConsent.system:
+        return DevicePairingConsentArgs.system;
+      case PairingConsent.app:
+        return DevicePairingConsentArgs.app;
+    }
+  }
+}
+
 /// 生成された結果 → 中立なペアリング結果。
 ///
 /// WinRT の 20 値を分岐に使う粒度へ畳む。細部はネイティブのログが持つ。

@@ -117,6 +117,7 @@ final class CentralManagerImpl
   Future<PairingResult> pair(
     Peripheral peripheral, {
     PairingProtection protection = PairingProtection.osDefault,
+    PairingConsent consent = PairingConsent.system,
   }) {
     // 未実装（iOS/macOS には相当する口が無く、OS が自動で昇格する）。
     throw UnsupportedError('pair is not implemented on iOS/macOS.');

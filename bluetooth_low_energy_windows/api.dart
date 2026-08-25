@@ -40,6 +40,12 @@ enum DevicePairingProtectionLevelArgs {
   encryptionAndAuthentication,
 }
 
+/// ペアリングの同意を誰が与えるか(共有インターフェースの PairingConsent)。
+///
+/// `system` は `DeviceInformationPairing.PairAsync`(同意は OS の UI)、
+/// `app` は `Custom()` + PairingRequested で ConfirmOnly を Accept()(UI 無し)。
+enum DevicePairingConsentArgs { system, app }
+
 /// Windows の `DevicePairingResultStatus` をそのまま写したもの。
 ///
 /// 文字列へ潰さず列挙で返すことで、呼び出し側が
@@ -333,9 +339,11 @@ abstract class CentralManagerHostApi {
   /// ボンディングしない装置では鍵が保存されないため、**接続ごとに**
   /// これを済ませてから初期読み出しへ進む必要がある。
   ///
-  /// この経路ではダイアログは出ない。PairingRequested ハンドラを登録して
-  /// ConfirmOnly を Accept() で受理するためである(登録しないと
-  /// RequiredHandlerNotRegistered / RejectedByHandler で失敗する)。
+  /// 同意は [consentArgs] で選ぶ。`system` は既定の `PairAsync` を使い、
+  /// 同意は OS の UI で利用者が与える。`app` は `Custom()` に PairingRequested
+  /// ハンドラを登録して ConfirmOnly を Accept() で受理し、UI は出ない
+  /// (Custom はハンドラを登録しないと RequiredHandlerNotRegistered /
+  /// RejectedByHandler で失敗する)。
   ///
   /// 失敗を例外にせず結果として返すので、キャンセル・タイムアウト・拒否を
   /// 呼び出し側で区別できる。
@@ -347,6 +355,7 @@ abstract class CentralManagerHostApi {
   DevicePairingResultStatusArgs pair(
     int addressArgs,
     DevicePairingProtectionLevelArgs protectionLevelArgs,
+    DevicePairingConsentArgs consentArgs,
   );
 
   /// OS が保持しているペアリング(関連付け)を解除する。接続は不要。

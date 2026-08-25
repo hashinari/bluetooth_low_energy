@@ -1072,9 +1072,9 @@ namespace bluetooth_low_energy_windows
 	// ボンディングしない装置では鍵が保存されないため、接続ごとにここを
 	// 通してから初期読み出しへ進む必要がある。
 
-	void CentralManagerImpl::Pair(int64_t address_args, const DevicePairingProtectionLevelArgs &protection_level_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
+	void CentralManagerImpl::Pair(int64_t address_args, const DevicePairingProtectionLevelArgs &protection_level_args, const DevicePairingConsentArgs &consent_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
 	{
-		PairAsync(address_args, protection_level_args, std::move(result));
+		PairAsync(address_args, protection_level_args, consent_args, std::move(result));
 	}
 
 	void CentralManagerImpl::Unpair(int64_t address_args, std::function<void(std::optional<FlutterError> reply)> result)
@@ -1112,8 +1112,8 @@ namespace bluetooth_low_energy_windows
 		}
 	}
 
-	// ConfirmOnly の同意要求をアプリ側で承認する。
-	// これを登録して Accept() すると Windows の同意ダイアログは出ない。
+	// ConfirmOnly の同意を代行する(同意の主体が app のときだけ登録される)。
+	// これを登録して Accept() すると Windows の同意 UI は出ない。
 	void CentralManagerImpl::OnPairingRequested(const winrt::Windows::Devices::Enumeration::DeviceInformationCustomPairing &sender, const winrt::Windows::Devices::Enumeration::DevicePairingRequestedEventArgs &args)
 	{
 		const auto kind = args.PairingKind();
@@ -1142,7 +1142,7 @@ namespace bluetooth_low_energy_windows
 		}
 	}
 
-	winrt::fire_and_forget CentralManagerImpl::PairAsync(int64_t address_args, DevicePairingProtectionLevelArgs protection_level_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
+	winrt::fire_and_forget CentralManagerImpl::PairAsync(int64_t address_args, DevicePairingProtectionLevelArgs protection_level_args, DevicePairingConsentArgs consent_args, std::function<void(ErrorOr<DevicePairingResultStatusArgs> reply)> result)
 	{
 		try
 		{
@@ -1169,13 +1169,6 @@ namespace bluetooth_low_energy_windows
 				co_return;
 			}
 
-			// 既定の PairAsync() は BLE では Failed を返しやすいため、
-			// セレモニーを明示する Custom を使う。
-			const auto &custom = pairing.Custom();
-			// ハンドラは常に登録する。ConfirmOnly は Accept() しないと
-			// 失敗する仕様で、デスクトップの同意はこれと別にシステム
-			// ダイアログが担う(アプリからは抑止できない)。
-			const auto token = custom.PairingRequested({this, &CentralManagerImpl::OnPairingRequested});
 			// 保護レベルは呼び出し側が装置のセキュリティ要求に合わせて指定
 			// する。かつては `pairing.ProtectionLevel()` を渡していたが、
 			// これは未ペアリング機器では「現在の水準 = None」を返すだけで
@@ -1183,18 +1176,35 @@ namespace bluetooth_low_energy_windows
 			// 昇格することも None のまま登録することもある)ことが実測で
 			// 確認されたため、明示指定に改めた。
 			const auto protection_level = ProtectionLevelFromArgs(protection_level_args);
-			const auto &pair_result = co_await custom.PairAsync(
-				winrt::Windows::Devices::Enumeration::DevicePairingKinds::ConfirmOnly |
-					winrt::Windows::Devices::Enumeration::DevicePairingKinds::ProvidePin,
-				protection_level);
-			custom.PairingRequested(token);
+			// 同意の主体で経路が分かれる。
+			// - system: 既定の PairAsync。セレモニーと同意の UI は OS が担う
+			//   (アプリは同意に関与しない)。
+			// - app: Custom ペアリング。ConfirmOnly は PairingRequested ハンドラが
+			//   Accept() で代行し、OS の同意 UI は出ない。ハンドラを登録しないと
+			//   RequiredHandlerNotRegistered / RejectedByHandler で失敗する。
+			winrt::Windows::Devices::Enumeration::DevicePairingResult pair_result{nullptr};
+			if (consent_args == DevicePairingConsentArgs::kSystem)
+			{
+				pair_result = co_await pairing.PairAsync(protection_level);
+			}
+			else
+			{
+				const auto &custom = pairing.Custom();
+				const auto token = custom.PairingRequested({this, &CentralManagerImpl::OnPairingRequested});
+				pair_result = co_await custom.PairAsync(
+					winrt::Windows::Devices::Enumeration::DevicePairingKinds::ConfirmOnly |
+						winrt::Windows::Devices::Enumeration::DevicePairingKinds::ProvidePin,
+					protection_level);
+				custom.PairingRequested(token);
+			}
 			// スレッド切替(co_await)前に結果値をすべて値で確定させる。
 			const auto pair_status = PairingStatusToArgs(pair_result.Status());
 			const auto used_level = pair_result.ProtectionLevelUsed();
 			// 実際に使われた保護レベルは要求と食い違うことがあるため、
 			// 操作単位のログに残す。
 			Log(LogLevelArgs::kFine,
-				"pair: requested protectionLevel=" + std::to_string(static_cast<int32_t>(protection_level)) +
+				"pair: consent=" + std::string(consent_args == DevicePairingConsentArgs::kSystem ? "system" : "app") +
+					", requested protectionLevel=" + std::to_string(static_cast<int32_t>(protection_level)) +
 					", used=" + std::to_string(static_cast<int32_t>(used_level)));
 			const auto ui_thread = m_ui_thread;
 			co_await ui_thread;

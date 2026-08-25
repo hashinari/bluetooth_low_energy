@@ -145,6 +145,7 @@ final class CentralManagerImpl
   Future<PairingResult> pair(
     Peripheral peripheral, {
     PairingProtection protection = PairingProtection.osDefault,
+    PairingConsent consent = PairingConsent.system,
   }) {
     // 未実装（不可ではない。Android にも相当する口はある）。
     throw UnsupportedError('pair is not implemented on Android.');

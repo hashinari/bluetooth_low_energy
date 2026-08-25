@@ -156,6 +156,7 @@ final class CentralManagerImpl implements CentralManager {
   Future<PairingResult> pair(
     Peripheral peripheral, {
     PairingProtection protection = PairingProtection.osDefault,
+    PairingConsent consent = PairingConsent.system,
   }) {
     // 未実装（不可ではない。Linux にも相当する口はある）。
     throw UnsupportedError('pair is not implemented on Linux.');

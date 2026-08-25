@@ -291,34 +291,29 @@ final class CentralManagerImpl
     await _guard(() => _api.writeDescriptor(addressArgs, handleArgs, valueArgs));
   }
 
-  /// ペアリング(暗号化リンクの確立)を開始し、結果が出るまで待つ。
+  /// ペアリング(保護を得る操作)を開始し、結果が出るまで待つ。
   ///
-  /// 保護された属性は、リンクが暗号化されていないと読み書きできない。
-  /// ボンディングしない装置では鍵が保存されないため、**接続ごとに**
-  /// これを済ませてから初期読み出しへ進む必要がある。
+  /// 同意は [consent] で選ぶ。既定の [PairingConsent.system] は OS の同意 UI
+  /// で利用者が承認する。[PairingConsent.app] は Just Works の同意を代行し、
+  /// UI は出ない。
   ///
-  /// デスクトップでは同意は必ずシステムダイアログで行われ、アプリからは
-  /// 抑止できない(Microsoft の文書と実測の両方で確認)。承認完了まで
-  /// この Future は解決しない(初回は利用者の操作時間がかかる)。
-  ///
-  /// 失敗は例外にせず [DevicePairingResultStatus] として返す。呼び出し側は
-  /// キャンセル・タイムアウト・拒否を区別できる。
-  ///
-  /// [protectionLevel] は要求する保護レベル。装置側のセキュリティ要求
-  /// (暗号化必須の GATT 等)に合わせて指定する。既定はライブラリとして
-  /// 中立な [DevicePairingProtectionLevel.defaultLevel](OS に選ばせる)。
+  /// 失敗は例外にせず [PairingResult] として返す。戻り値は OS のペアリング
+  /// 結果であって、リンクが保護されたことは保証しない。
   @override
   Future<PairingResult> pair(
     Peripheral peripheral, {
     PairingProtection protection = PairingProtection.osDefault,
+    PairingConsent consent = PairingConsent.system,
   }) async {
     if (peripheral is! PeripheralImpl) {
       throw TypeError();
     }
     final addressArgs = peripheral.address;
-    _logger.info('pair: $addressArgs (protection: $protection)');
+    _logger.info(
+      'pair: $addressArgs (protection: $protection, consent: $consent)',
+    );
     final statusArgs = await _guard(
-      () => _api.pair(addressArgs, protection.toArgs()),
+      () => _api.pair(addressArgs, protection.toArgs(), consent.toArgs()),
     );
     _logger.info('pair: $addressArgs -> $statusArgs');
     return statusArgs.toResult();
